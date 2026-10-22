@@ -2,7 +2,7 @@
 
 Peer-to-peer Texas Hold'em for friends. A static site, no server.
 
-**Play:** https://walstanb.github.io/OnTilt/
+**Play:** https://walstan.me/OnTilt/
 
 ## Project layout
 
