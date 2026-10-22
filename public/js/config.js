@@ -11,8 +11,8 @@ export const RELAY_URLS = [
 
 // TURN relays carry game traffic when two players can't connect directly
 // (different networks, mobile data, strict Wi-Fi). Without one, those players can't join.
-// Easiest: create a free app at https://www.metered.ca/stun-turn and paste its
-// credentials URL here (https://<app>.metered.live/api/v1/turn/credentials?apiKey=...).
+// Leave this empty in git: the deploy workflow fills it from the TURN_CREDENTIALS_URL repo secret
+// (https://<app>.metered.live/api/v1/turn/credentials?apiKey=...). For local testing, paste it here but don't commit it.
 export const TURN_CREDENTIALS_URL = '';
 // Or list servers directly: [{ urls:'turn:host:3478', username:'u', credential:'p' }]
 export const TURN_SERVERS = [];

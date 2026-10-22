@@ -24,6 +24,17 @@ jobs:
           node-version: 24
       - name: Syntax-check JS modules
         run: for f in public/js/*.js; do node --check "$f"; done
+      - name: Inject TURN credentials URL from repo secret
+        env:
+          TURN_CREDENTIALS_URL: ${{ secrets.TURN_CREDENTIALS_URL }}
+        run: |
+          if [ -z "$TURN_CREDENTIALS_URL" ]; then echo "No TURN secret set; cross-network play may fail"; exit 0; fi
+          node -e '
+            const fs=require("fs"), f="public/js/config.js", line="export const TURN_CREDENTIALS_URL = \x27\x27;";
+            const src=fs.readFileSync(f,"utf8"); if(!src.includes(line)) throw new Error("TURN placeholder not found in config.js");
+            fs.writeFileSync(f, src.replace(line, "export const TURN_CREDENTIALS_URL = "+JSON.stringify(process.env.TURN_CREDENTIALS_URL)+";"));
+          '
+          node --check public/js/config.js
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

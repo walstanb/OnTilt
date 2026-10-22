@@ -66,6 +66,6 @@ Every push to `main` runs `.github/workflows/deploy.yml`, which syntax-checks th
 
 1. Create a free account at [metered.ca/stun-turn](https://www.metered.ca/stun-turn) and create an app.
 2. Copy its credentials URL: `https://<app>.metered.live/api/v1/turn/credentials?apiKey=...`
-3. Paste it into `TURN_CREDENTIALS_URL` in `public/js/config.js`, commit and push. The deploy runs automatically.
+3. Save it as a repo secret: `gh secret set TURN_CREDENTIALS_URL` (paste when prompted), then re-run the deploy. The workflow writes it into `config.js` at build time so it never lands in git.
 
-You can also list servers directly in `TURN_SERVERS` (e.g. your own [coturn](https://github.com/coturn/coturn)). The key is visible in the page source, so use a provider that lets you cap usage.
+You can also list servers directly in `TURN_SERVERS` (e.g. your own [coturn](https://github.com/coturn/coturn)). The key is still visible in the deployed page source, so set a usage cap with your provider.
