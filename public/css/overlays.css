@@ -20,5 +20,5 @@
 @keyframes spin{to{transform:rotate(1turn)}}
 .banner{flex:none;text-align:center;font-size:13px;color:#ffb86b;padding:6px 0}
 
-@media (min-width:700px){ #app{border-left:1px solid #111;border-right:1px solid #111} }
+@media (min-width:700px){ #app:not(.wide){border-left:1px solid #111;border-right:1px solid #111} }
 @media (max-height:640px){ .under{height:38px;margin-top:2px} .pie-wrap{height:22px} .me{margin-top:8px} }

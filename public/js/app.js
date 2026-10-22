@@ -164,7 +164,13 @@ function setView(v){
 // ------------------------------ rendering ------------------------------
 let screen='lobby', lobby={ stake:2, mode:'create', code:null };
 
+// Wide screens get an oval table with a bottom action dock; phones keep the stacked layout.
+// Keep this query in sync with the one in css/desktop.css.
+const deskMQ = matchMedia('(min-width:960px) and (min-height:560px)');
+deskMQ.addEventListener('change', ()=>render());
+
 function render(prev){
+  app.classList.toggle('wide', screen!=='lobby' && deskMQ.matches);
   if(screen==='lobby') return renderLobby();
   return renderTable(prev);
 }
@@ -297,6 +303,16 @@ function renderTable(prev){
   const banner = hostLost ? `<div class="banner">Lost connection to host… waiting</div>` : '';
   const emo = ui.emoteOpen ? `<div class="shade" data-act="emoteClose"></div><div class="emobar">${EMOTES.map(e=>`<button data-act="em" data-v="${e}">${e}</button>`).join('')}</div>` : '';
 
+  if(deskMQ.matches){
+    let ring=''; for(let k=1;k<MAXS;k++) ring+=seatHTML(v,(anchor+k)%MAXS,seated,'p'+k);
+    const keys = myTurn && !ui.raiseOpen ? `<div class="keys"><kbd>F</kbd> fold <kbd>C</kbd> check / call <kbd>R</kbd> raise <kbd>↑</kbd> custom</div>` : '';
+    app.innerHTML = head + banner +
+      `<div class="felt-wrap"><div class="felt">${ring}
+        <div class="center"><div class="board">${board}</div><div class="pot">${v.pot>0||active?fmt(v.pot):''}</div></div>
+        <div class="mybet">${betChip}</div></div></div>
+       <div class="dock"><div class="hole ${mine&&mine.folded?'folded':''}" id="hole">${hole}</div>${box}
+         <div class="act">${raisePanel}${ctrl}${keys}</div></div>${emo}`;
+  } else
   app.innerHTML = head + banner +
     `<div class="seats">${top}</div><div class="grow" style="flex-grow:1"></div>
      <div class="board">${board}</div><div class="pot">${v.pot>0||active?fmt(v.pot):''}</div>
@@ -309,9 +325,9 @@ function renderTable(prev){
   if(canSwipe) bindSwipe();
 }
 
-function seatHTML(v,i,seated){
+function seatHTML(v,i,seated,pos=''){
   const s=v.seats[i], R=v.results, active=v.street!=='idle'&&v.street!=='showdown';
-  if(!s) return `<div class="seat"><div class="pie-wrap"></div>
+  if(!s) return `<div class="seat ${pos}"><div class="pie-wrap"></div>
     <button class="plus" data-act="sit" data-i="${i}" ${seated&&!v.isHost?'disabled':''} aria-label="Sit here"></button>
     <div class="nm">&nbsp;</div><div class="st">&nbsp;</div><div class="under"></div></div>`;
   const dim = (active&&(!s.inHand||s.folded)) || (!s.connected) || (R&&s.inHand&&s.folded) ;
@@ -322,7 +338,7 @@ function seatHTML(v,i,seated){
   else if(s.allIn && active) under=`<span class="tag">ALL IN</span>`;
   else if(active && s.last==='Check') under=`<span class="tag" style="color:#6d6d72">CHECK</span>`;
   const turn = v.toAct===i && active;
-  return `<div class="seat ${dim?'dim':''}">
+  return `<div class="seat ${pos} ${dim?'dim':''}">
     <div class="pie-wrap">${turn?'<div class="pie" data-timer></div>':''}</div>
     <button class="av" data-act="seatTap" data-i="${i}" data-seat-av="${i}">${s.av}${v.dealer===i&&v.handNo?'<b class="d">D</b>':''}</button>
     <div class="nm">${esc(s.name)}${s.bot?'':''}</div><div class="st">${fmt(s.stack)}</div>
@@ -417,6 +433,18 @@ app.addEventListener('click', e=>{
       else sheet('Leave table?','Your chips stay at the table until you stand up.',[{label:'Stand up and leave',cls:'danger',fn:()=>{ send({t:'stand'}); setTimeout(goHome,250); }},{label:'Just leave',fn:goHome}]);
       break;
   }
+});
+
+// keyboard shortcuts (desktop): F fold, C / space check-call, R min-raise, ↑ custom raise, Enter confirm, Esc close
+document.addEventListener('keydown',e=>{
+  if(e.metaKey||e.ctrlKey||e.altKey||e.target.closest?.('input:not([type=range])')) return;
+  if(e.key==='Escape'){ const bg=document.querySelector('.sheet-bg'); if(bg){ bg.remove(); return; }
+    if(ui.emoteOpen){ ui.emoteOpen=false; render(); return; } if(ui.raiseOpen){ ui.raiseOpen=false; render(); } return; }
+  if(screen==='lobby' || document.querySelector('.sheet-bg')) return;
+  const acts={ f:['fold'], c:['check','call'], ' ':['check','call'], r:['raiseMin'], arrowup:['raiseOpen'], enter:['raiseGo'] }[e.key.toLowerCase()];
+  if(!acts) return;
+  const b=acts.map(a=>app.querySelector(`button[data-act="${a}"]:not(:disabled)`)).find(Boolean);
+  if(b){ e.preventDefault(); b.click(); }
 });
 
 // ------------------------------ flows ------------------------------

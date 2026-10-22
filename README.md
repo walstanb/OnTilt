@@ -15,6 +15,7 @@ public/              # everything served by GitHub Pages
     controls.css     # action buttons, my-hand row, emotes
     lobby.css        # lobby / table setup
     overlays.css     # sheets and toast
+    desktop.css      # wide-screen layout: oval table + action dock, hover states
   js/
     config.js        # app ID, Trystero URL, shot clock
     engine.js        # Hold'em rules engine (pure logic, no DOM)
@@ -42,6 +43,7 @@ Every push to `main` runs `.github/workflows/deploy.yml`, which syntax-checks th
 - **Friends:** open the link, pick a name and avatar, tap **Join table**, then tap any **+** to sit down.
 - **Bots:** as host, tap an empty **+** to add a bot. Handy for testing alone or filling seats. Tap a bot to remove it.
 - **Fold:** tap **Fold**, or swipe your cards down.
+- **Desktop:** on wide screens the game uses an oval table with an action bar at the bottom. Shortcuts: `F` fold, `C` or `Space` check/call, `R` min-raise, `↑` custom raise, `Enter` confirm, `Esc` close.
 - **Raise:** tap **Raise** for a min-raise, or **↑** for the slider with ½ Pot / Pot / All in.
 - **Reactions:** tap the smiley in your player box.
 - **Ledger:** `•••` > **Ledger** shows buy-ins and net results, for settling up afterward.
