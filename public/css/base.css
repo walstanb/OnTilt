@@ -1,0 +1,14 @@
+:root{
+  --bg:#000; --fg:#f4f4f5; --mut:#8e8e93; --line:#26262a; --fill:#1d1d21;
+  --gold:#f5e35c; --green:#5fe3a1; --green-d:#0f3a27; --red:#ef4136; --mint:#cde8c6;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);
+  font-family:Inter,system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased;
+  overscroll-behavior:none;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+button:disabled{cursor:default}
+input{font:inherit}
+#app{max-width:520px;margin:0 auto;height:100vh;height:100dvh;display:flex;flex-direction:column;
+  padding:max(env(safe-area-inset-top),8px) 16px max(env(safe-area-inset-bottom),14px);
+  container-type:inline-size;position:relative;overflow:hidden}

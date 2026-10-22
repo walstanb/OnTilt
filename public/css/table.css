@@ -1,0 +1,47 @@
+/* ---------- top bar ---------- */
+.top{display:grid;grid-template-columns:44px 1fr 44px;align-items:center;height:52px;flex:none}
+.top .code{text-align:center;font-size:17px;font-weight:500;letter-spacing:.02em;color:#e8e8ea}
+.ico{width:44px;height:44px;display:grid;place-items:center;border-radius:14px}
+.ico svg{width:26px;height:26px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+
+/* ---------- seats ---------- */
+.seats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));flex:none;margin-top:4px}
+.seat{display:flex;flex-direction:column;align-items:center;transition:opacity .25s}
+.seat.dim{opacity:.22}
+.pie-wrap{height:clamp(26px,7cqw,34px);display:grid;place-items:center}
+.pie{width:clamp(17px,4.4cqw,22px);aspect-ratio:1;border-radius:50%;
+  background:conic-gradient(var(--green) calc(var(--p,1)*1turn),var(--green-d) 0)}
+.av{position:relative;font-size:clamp(34px,10.2cqw,52px);line-height:1;width:1.2em;height:1.2em;display:grid;place-items:center}
+.d{position:absolute;right:-8%;bottom:-4%;font-size:.24em;width:1.8em;height:1.8em;border-radius:50%;background:#fff;color:#000;
+  font-weight:800;font-family:Inter,sans-serif;line-height:1;display:grid;place-items:center;box-shadow:0 0 0 2px #000}
+.plus{width:clamp(38px,9.6cqw,50px);aspect-ratio:1;border:2px solid #34343a;border-radius:30%;margin:calc(clamp(34px,10.2cqw,52px)*.1) 0;position:relative}
+.plus::before,.plus::after{content:'';position:absolute;left:50%;top:50%;width:46%;height:2px;background:#5a5a60;transform:translate(-50%,-50%)}
+.plus::after{transform:translate(-50%,-50%) rotate(90deg)}
+.plus:disabled{opacity:.35}
+.nm{font-size:clamp(12px,3.3cqw,15px);color:var(--mut);margin-top:6px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 2px}
+.st{font-size:clamp(15px,4.2cqw,19px);font-weight:500;margin-top:2px;font-variant-numeric:tabular-nums}
+.under{height:clamp(46px,12cqw,58px);display:flex;white-space:nowrap;align-items:center;justify-content:center;gap:3px;margin-top:6px}
+.chip{min-width:clamp(30px,8cqw,38px);height:clamp(30px,8cqw,38px);padding:0 8px;border-radius:999px;background:var(--fill);
+  color:var(--gold);font-weight:600;font-size:clamp(13px,3.7cqw,17px);display:inline-grid;place-items:center;font-variant-numeric:tabular-nums}
+.chip.win{color:#0b0b0b;background:var(--green)}
+.tag{font-size:11px;font-weight:600;letter-spacing:.06em;color:var(--gold)}
+.mini{width:clamp(22px,6.4cqw,30px)}
+
+/* ---------- cards ---------- */
+.card{position:relative;aspect-ratio:5/7;border-radius:16%/11.4%;background:linear-gradient(140deg,#fff 55%,#e9e9eb);
+  container-type:inline-size;color:#121212;overflow:hidden;flex:none}
+.card .r{position:absolute;left:13%;top:5%;font-size:46cqw;font-weight:400;letter-spacing:-.05em;line-height:1.1}
+.card .s{position:absolute;left:13%;bottom:9%;font-size:36cqw;line-height:1}
+.card.red{color:var(--red)}
+.card.back::after,.card.ghost::after{content:'';position:absolute;inset:8.5%;border-radius:9%/6.5%;
+  background:repeating-linear-gradient(135deg,#161616 0 2.6cqw,transparent 2.6cqw 9.5cqw)}
+.card.ghost{background:transparent;border:2px solid var(--line)}
+.card.ghost::after{background:repeating-linear-gradient(135deg,#242428 0 2.6cqw,transparent 2.6cqw 9.5cqw)}
+.card.fade{opacity:.35}
+.card.deal{animation:flip .35s ease-out}
+@keyframes flip{from{transform:rotateY(80deg) scale(.92);opacity:.4}to{transform:none;opacity:1}}
+
+.board{display:flex;gap:2.1cqw;flex:none}
+.board .card{flex:1}
+.pot{text-align:right;font-size:clamp(28px,8.4cqw,40px);font-weight:400;margin-top:10px;font-variant-numeric:tabular-nums;flex:none;min-height:1.2em}
+.grow{flex:1 1 0;min-height:6px}
