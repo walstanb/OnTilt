@@ -1,0 +1,73 @@
+/* ---------- brand ---------- */
+.brand{display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;min-width:0}
+.wm{display:inline-flex;align-items:center;gap:5px;font-size:18px;font-weight:500;letter-spacing:-.01em;color:#e8e8ea}
+.wm b{font-weight:600;color:var(--mint)}
+.wm .mark{width:20px;height:20px;flex:none}
+.brand small{display:block;margin-top:4px;font-size:12px;color:var(--mut);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.panel .top .wm{font-size:22px}
+.panel .top .wm .mark{width:22px;height:22px}
+
+/* ---------- lobby additions ---------- */
+.side{display:flex;flex-direction:column;flex:1;min-height:0}
+.seg{display:flex;gap:4px;padding:4px;margin:14px auto 0;width:100%;max-width:340px;border-radius:999px;background:#0d0d0f;border:1px solid #2a2a2f}
+.seg button{flex:1;height:38px;border-radius:999px;font-size:15px;color:#8e8e93;transition:background .2s,color .2s}
+.seg button.sel{background:#2c2d30;color:#fff}
+.seg.sm{margin-top:16px;max-width:380px}
+.seg.sm button{height:32px;font-size:13px}
+.nmrow{display:flex;gap:8px}
+.nmrow input{flex:1;min-width:0}
+.dice{width:56px;height:56px;flex:none;border-radius:20px;border:2px solid var(--line);display:grid;place-items:center;color:#8e8e93;transition:transform .3s var(--spring,ease),color .2s}
+.dice svg{width:26px;height:26px;stroke:currentColor;fill:none;stroke-width:1.8}
+.dice:active{transform:rotate(90deg) scale(.95);color:#fff}
+.saved{margin-top:22px;flex:none}
+.saved-h{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--mut);letter-spacing:.04em;text-transform:uppercase;margin-bottom:8px}
+.saved-h button{font-size:13px;color:var(--mint);text-transform:none;letter-spacing:0}
+.saved .none{margin:0;font-size:14px;color:#55555b;line-height:1.4}
+.srow{display:flex;align-items:stretch;gap:6px;margin-top:6px;animation:slide .25s var(--out,ease) both}
+.sgo{flex:1;min-width:0;text-align:left;padding:10px 14px;border-radius:16px;background:#121214;border:1px solid #222226;display:flex;flex-direction:column;gap:3px;transition:background .15s}
+.sgo b{font-weight:500;font-size:15px}
+.sgo span{font-size:13px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sdel{width:44px;flex:none;border-radius:16px;display:grid;place-items:center;color:#55555b}
+.sdel svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round}
+.lbtns{display:flex;gap:10px;flex:none}
+.lbtns .lbtn.out{flex:1;padding-left:40px}
+.lbtns .lbtn.sq{flex:none;padding:0}
+.lbtn.sq{width:clamp(56px,15cqw,66px);flex:none;padding:0}
+.lbtn.sq svg{position:static;width:24px;height:24px;stroke:var(--mint);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+/* ---------- stack bar: height shows share of the biggest stack ---------- */
+.st{display:flex;align-items:center;justify-content:center;gap:6px}
+.cviz{display:inline-block;width:3px;height:1em;border-radius:2px;background:linear-gradient(to top,#6d6d72 calc(var(--h)*100%),#26262a 0);transition:background .4s ease}
+.cviz.lead{background:linear-gradient(to top,var(--mint) calc(var(--h)*100%),#26262a 0)}
+
+/* ---------- your cards: no overlap glitch, tap to hide, swipe up to fold ---------- */
+.hole .card.ghost{background:var(--bg)}
+.hole .card.ghost:last-child{box-shadow:-8px 0 0 var(--bg)}
+.hole.mine{cursor:pointer}
+.hole .card.hid{animation:fade .2s ease both}
+.hole.flung{transition:transform .3s ease-in,opacity .3s ease-in !important;transform:translateY(-140px) rotate(-6deg) !important;opacity:0 !important}
+
+/* ---------- sheets ---------- */
+.sheet-body{color:var(--mut);font-size:15px;line-height:1.4;margin:0 0 14px}
+.sheet-body p{margin:0 0 8px}
+.sheet.tall{max-height:80vh}
+.sel-text{-webkit-user-select:all;user-select:all;word-break:break-all;color:#e8e8ea}
+.qr{text-align:center}
+.qr-box{width:min(260px,70vw);aspect-ratio:1;margin:6px auto 12px;border-radius:20px;overflow:hidden;background:#fff;display:grid;place-items:center;padding:6px;animation:zoom .3s var(--out,ease) both}
+.qr-box svg{width:100%;height:100%;display:block}
+.qr-box .spin{border-color:#ddd;border-top-color:#000;margin:0}
+.hist{display:flex;flex-direction:column;gap:10px}
+.hrow{padding:10px 12px;border-radius:14px;background:#1c1c1f}
+.hh{display:flex;flex-direction:column;gap:2px}
+.hh b{font-weight:600;color:#e8e8ea;font-size:13px}
+.hh span{font-size:14px;color:#c7c7cc}
+.hb,.hs{display:flex;align-items:center;gap:3px;margin-top:6px}
+.hb .mini,.hs .mini{width:24px}
+.hs span{margin-left:6px;font-size:13px}
+.ledger td:first-child{white-space:nowrap}
+
+/* ---------- dark card backs (board placeholders, hidden cards) to match the black table ---------- */
+.card.back{background:linear-gradient(150deg,#1c1c20,#121214);border:2px solid #2a2a2f}
+.card.back::after{background:repeating-linear-gradient(135deg,#26262b 0 2.6cqw,transparent 2.6cqw 9.5cqw)}
+.hole .card.back.hid{border-color:#3a3a40}
+

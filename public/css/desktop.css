@@ -15,10 +15,18 @@
 }
 
 @media (min-width:960px) and (min-height:560px){
-  /* lobby: a centered card instead of a full-height phone screen */
-  #app:not(.wide) .lobby{max-height:860px;margin:auto 0}
-  #app:not(.wide) .panel{margin:0 -16px;border-radius:36px}
-  #app:not(.wide) .avs{flex-wrap:wrap;overflow:visible;justify-content:center}
+  /* lobby: a two-column card — settings on the left, you + actions on the right */
+  #app.lobby-wide{max-width:1040px;padding:32px 32px 28px;border:0;justify-content:center}
+  #app.lobby-wide .lobby{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:36px;height:auto;max-height:min(760px,100%);align-items:stretch}
+  #app.lobby-wide .panel{margin:0;border-radius:36px;padding:8px 28px 34px;display:flex;flex-direction:column;justify-content:center;min-height:540px}
+  #app.lobby-wide .panel.join{justify-content:flex-start}
+  #app.lobby-wide .panel .top{position:absolute;top:0;left:0;right:0;padding:18px 18px 0}
+  #app.lobby-wide .panel{position:relative;padding-top:72px}
+  #app.lobby-wide .side{padding:8px 0 0}
+  #app.lobby-wide .prof{margin-top:0}
+  #app.lobby-wide .avs{flex-wrap:wrap;overflow:visible;margin:12px 0 0;padding:0}
+  #app.lobby-wide .lbtn{height:60px;font-size:17px}
+  #app.lobby-wide .lbtn.sq{width:60px}
 
   /* sheets become centered dialogs */
   .sheet-bg{align-items:center}
@@ -34,13 +42,12 @@
 /* table area */
 #app.wide .felt-wrap{flex:1 1 0;min-height:0;container-type:size;display:grid;place-items:center;padding:84px 130px 20px}
 #app.wide .felt{position:relative;width:min(100cqw - 260px, (100cqh - 104px) * 2.05);aspect-ratio:2.05;border-radius:50%;
-  background:radial-gradient(ellipse at 50% 40%,#13291f 0%,#0b1913 55%,#07100c 100%);
-  box-shadow:0 0 0 10px #141416,0 0 0 11px #26262a,inset 0 0 0 1px #1f3d2f,inset 0 0 80px #0009,0 30px 80px #000}
+  background:#000;
+  border:2px solid var(--line);box-shadow:inset 0 0 0 10px #050506,inset 0 0 0 11px #17171a,0 30px 80px #000}
 
-/* seats on the rail, clockwise from your left; each is a small pod so it reads over the rail */
-#app.wide .seat{position:absolute;width:124px;transform:translate(-50%,-50%);z-index:2;
-  background:#0c0c0e;border:1px solid #26262a;border-radius:22px;padding:4px 6px 10px;box-shadow:0 10px 30px #000a}
-#app.wide .seat:has(> .plus){background:transparent;border-color:transparent;box-shadow:none}
+/* seats on the rail, clockwise from your left; a black backing hides the rail line behind them */
+#app.wide .seat{position:absolute;width:124px;transform:translate(-50%,-50%);z-index:2;background:var(--bg);border-radius:24px;padding:4px 6px 8px}
+#app.wide .seat.empty{background:transparent}
 #app.wide .seat .pie-wrap{height:22px}
 #app.wide .seat .av{font-size:46px}
 #app.wide .seat .nm{font-size:14px;margin-top:4px}

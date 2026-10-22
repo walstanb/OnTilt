@@ -24,6 +24,8 @@ jobs:
           node-version: 24
       - name: Syntax-check JS modules
         run: for f in public/js/*.js; do node --check "$f"; done
+      - name: Engine tests (rules, side pots, deck, tournaments)
+        run: node tests/engine.test.mjs
       - name: Inject TURN credentials URL from repo secret
         env:
           TURN_CREDENTIALS_URL: ${{ secrets.TURN_CREDENTIALS_URL }}

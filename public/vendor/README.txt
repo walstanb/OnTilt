@@ -1,0 +1,2 @@
+qrcode.min.js: qrcode-generator 1.4.4 by Kazuhiko Arase, MIT license.
+https://github.com/kazuhikoarase/qrcode-generator

@@ -16,16 +16,28 @@ public/              # everything served by GitHub Pages
     lobby.css        # lobby / table setup
     overlays.css     # sheets and toast
     desktop.css      # wide-screen layout: oval table + action dock, hover states
+    features.css     # brand, lobby extras, stack bars, sheets
     motion.css       # animations and transitions
   js/
     config.js        # app ID, relays, TURN servers, shot clock
+    sound.js         # synthesized sounds + vibration (no audio files)
+    qr.js            # QR codes for invites (bundled qrcode-generator in vendor/)
     morph.js         # tiny DOM patcher so re-renders keep elements (and their transitions)
     engine.js        # Hold'em rules engine (pure logic, no DOM)
     ui-helpers.js    # formatting, icons, card markup, toast, storage
     app.js           # networking, host loop, rendering, input
   assets/favicon.svg
-.github/workflows/deploy.yml   # deploys public/ to Pages on every push to main
+.github/workflows/deploy.yml   # tests the engine, then deploys public/ to Pages on every push to main
+tests/engine.test.mjs          # rules, side pots, deck and tournament simulations
 ```
+
+## Tests
+
+```sh
+node tests/engine.test.mjs
+```
+
+Plays ~30,000 random hands and 300 tournaments, checking chip conservation, unique cards, legal actions, side-pot winners and placings. Deploys are blocked if it fails.
 
 ## Run locally
 
@@ -44,8 +56,14 @@ Every push to `main` runs `.github/workflows/deploy.yml`, which syntax-checks th
 - **Host:** open the site, pick stakes, enter your name, tap **Start game**. Tap the `•••` menu and **Invite friends** to share the link (it ends in your table number, like `#1203877`).
 - **Friends:** open the link, pick a name and avatar, tap **Join table**, then tap any **+** to sit down.
 - **Bots:** as host, tap an empty **+** to add a bot. Handy for testing alone or filling seats. Tap a bot to remove it.
-- **Fold:** tap **Fold**, or swipe your cards down.
-- **Desktop:** on wide screens the game uses an oval table with an action bar at the bottom. Shortcuts: `F` fold, `C` or `Space` check/call, `R` min-raise, `↑` custom raise, `Enter` confirm, `Esc` close.
+- **Fold:** tap **Fold**, or swipe your cards up.
+- **Hide your cards:** tap them (or press `H`). Tap again to peek.
+- **Tournament:** pick Tournament in the lobby, choose a speed (blinds up every 5, 10 or 15 minutes), seat players, then tap **Start tournament**. No rebuys or late entries; last player standing wins.
+- **Invite in person:** `•••` > **Show QR code**, or the QR button in the lobby.
+- **Save & resume:** tables you host save automatically on your device and appear under **Your tables** in the lobby. `•••` > **Save game to a file** lets you move a game to another device (**Open save file** in the lobby).
+- **History:** `•••` > **Hand history** shows the last 15 hands.
+- **Sound & vibration:** toggle from `•••`.
+- **Desktop:** on wide screens the game uses an oval table with an action bar at the bottom. Shortcuts: `F` fold, `C` or `Space` check/call, `R` min-raise, `↑` custom raise, `Enter` confirm, `H` hide cards, `Esc` close.
 - **Raise:** tap **Raise** for a min-raise, or **↑** for the slider with ½ Pot / Pot / All in.
 - **Reactions:** tap the smiley in your player box.
 - **Ledger:** `•••` > **Ledger** shows buy-ins and net results, for settling up afterward.

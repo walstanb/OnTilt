@@ -8,8 +8,15 @@ export const fmtCode = c => (+c).toLocaleString('en-US');
 export const STAKES = [[1,2],[2,5],[5,10],[10,20],[25,50],[50,100],[100,200],[250,500]];
 export const AVATARS = ['🦁','🙂','👩🏽','👦🏻','🧔🏽','🐸','🦊','🐼','🐯','🐙','🤠','👽','🦄','🐻','😎','🤖'];
 export const EMOTES = ['👋','👏','😆','😫','😠','🥳'];
+// Fun names offered to new players (they can reroll or type their own).
+const NAME_A = ['Lucky','Sly','Wild','Cool','Bold','Lazy','Sneaky','Salty','Spicy','Quiet','Royal','Chill','Shady','Tilted','Cosmic','Grumpy','Turbo','Velvet','Midnight','Golden'];
+const NAME_B = ['Ace','Fox','Shark','Donkey','Joker','River','Bluff','Muck','Nuts','Fish','Whale','Cowboy','Kicker','Flop','Owl','Rocket','Duck','Bandit','Tiger','Pocket'];
+export const randomName = () => { const a=NAME_A[Math.floor(Math.random()*NAME_A.length)], b=NAME_B[Math.floor(Math.random()*NAME_B.length)];
+  return (a+b).length<=14 ? a+b : b+Math.floor(10+Math.random()*90); };
 export const BOTS = [['flint','🙂'],['lolaa','👩🏽'],['hot_duck','👦🏻'],['eager_cat','🐱'],['mav','🤠'],['bluffy','🦊'],['nits','🐢']];
 export const ICON = {
+  qr:'<svg viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><path d="M14 14h2v2h-2zM18 18h2v2h-2zM14 18h2M18 14h2"/></svg>',
+  dice:'<svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4"/><circle cx="9" cy="9" r="1.2" fill="currentColor"/><circle cx="15" cy="15" r="1.2" fill="currentColor"/><circle cx="15" cy="9" r="1.2" fill="currentColor"/><circle cx="9" cy="15" r="1.2" fill="currentColor"/></svg>',
   back:'<svg viewBox="0 0 24 24"><path d="M20 12H4M10 6l-6 6 6 6"/></svg>',
   up:'<svg viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></svg>',
   x:'<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>',

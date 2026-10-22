@@ -37,8 +37,8 @@
 .seat .av:active,.plus:not(:disabled):active{transform:scale(.92)}
 .pie{animation:fade .25s ease both}
 .tag{animation:fade .25s ease both}
-#app.wide .seat{transition:opacity .35s ease,border-color .3s ease,box-shadow .3s ease}
-#app.wide .seat:has(.pie){border-color:#1f3d2f;box-shadow:0 0 0 1px #1f3d2f,0 0 28px #5fe3a122,0 10px 30px #000a}
+#app.wide .seat{transition:opacity .35s ease,box-shadow .3s ease}
+#app.wide .seat.turn{box-shadow:0 0 0 2px #1f3d2f,0 0 30px #5fe3a11c}
 .hand{transition:border-color .3s ease,box-shadow .3s ease}
 .hand.turn{box-shadow:0 0 30px #5fe3a118}
 
