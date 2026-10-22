@@ -15,7 +15,7 @@ public/              # everything served by GitHub Pages
     controls.css     # action buttons, my-hand row, emotes
     lobby.css        # lobby / table setup
     overlays.css     # sheets and toast
-    desktop.css      # wide-screen layout: oval table + action dock, hover states
+    desktop.css      # wide-screen layout: widened open table + action dock, hover states
     features.css     # brand, lobby extras, stack bars, sheets
     motion.css       # animations and transitions
   js/
@@ -63,7 +63,7 @@ Every push to `main` runs `.github/workflows/deploy.yml`, which syntax-checks th
 - **Save & resume:** tables you host save automatically on your device and appear under **Your tables** in the lobby. `•••` > **Save game to a file** lets you move a game to another device (**Open save file** in the lobby).
 - **History:** `•••` > **Hand history** shows the last 15 hands.
 - **Sound & vibration:** toggle from `•••`.
-- **Desktop:** on wide screens the game uses an oval table with an action bar at the bottom. Shortcuts: `F` fold, `C` or `Space` check/call, `R` min-raise, `↑` custom raise, `Enter` confirm, `H` hide cards, `Esc` close.
+- **Desktop:** wide screens use the same open layout as phones, widened, with an action bar at the bottom. Shortcuts: `F` fold, `C` or `Space` check/call, `R` min-raise, `↑` custom raise, `Enter` confirm, `H` hide cards, `Esc` close.
 - **Raise:** tap **Raise** for a min-raise, or **↑** for the slider with ½ Pot / Pot / All in.
 - **Reactions:** tap the smiley in your player box.
 - **Ledger:** `•••` > **Ledger** shows buy-ins and net results, for settling up afterward.

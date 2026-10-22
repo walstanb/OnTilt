@@ -465,17 +465,18 @@ function renderTable(prev){
   const potHTML = `<div class="pot">${v.pot>0||active?fmt(v.pot):''}</div>`;
 
   const fx=captureFx();
+  // Desktop uses the same open layout as phones (a row of players, the board, your controls), just wider.
+  let top=''; for(let k=1;k<MAXS;k++) top+=seatHTML(v,(anchor+k)%MAXS,seated,maxStack);
   if(deskMQ.matches){
-    let ring=''; for(let k=1;k<MAXS;k++) ring+=seatHTML(v,(anchor+k)%MAXS,seated,maxStack,'p'+k);
     const keys = myTurn && !ui.raiseOpen ? `<div class="keys"><kbd>F</kbd> fold <kbd>C</kbd> check / call <kbd>R</kbd> raise <kbd>↑</kbd> custom <kbd>H</kbd> hide</div>` : '';
     paint(head + banner +
-      `<div class="felt-wrap"><div class="felt">${ring}
-        <div class="center"><div class="board">${board}</div>${potHTML}</div>
-        <div class="mybet">${betChip}</div></div></div>
+      `<div class="seats">${top}</div><div class="grow" style="flex-grow:1"></div>
+       <div class="center"><div class="board">${board}</div>${potHTML}</div>
+       <div class="grow" style="flex-grow:1.2"></div>
+       <div class="mybet">${betChip}</div>
        <div class="dock">${holeEl}${box}
          <div class="act">${raisePanel}${ctrl}${keys}</div></div>${emo}`);
   } else {
-    let top=''; for(let k=1;k<MAXS;k++) top+=seatHTML(v,(anchor+k)%MAXS,seated,maxStack);
     paint(head + banner +
       `<div class="seats">${top}</div><div class="grow" style="flex-grow:1"></div>
        <div class="board">${board}</div>${potHTML}
@@ -490,10 +491,10 @@ function renderTable(prev){
   bindHole(myTurn && mine && v.curBet>mine.bet);
 }
 
-function seatHTML(v,i,seated,maxStack,pos=''){
+function seatHTML(v,i,seated,maxStack){
   const s=v.seats[i], R=v.results, active=isActive(v);
   const canSit = !(v.tour && v.tour.started) && (!seated || v.isHost);
-  if(!s) return `<div class="seat ${pos} empty"><div class="pie-wrap"></div>
+  if(!s) return `<div class="seat empty"><div class="pie-wrap"></div>
     <button class="plus" data-k="plus" data-act="sit" data-i="${i}" ${canSit?'':'disabled'} aria-label="Sit here"></button>
     <div class="nm">&nbsp;</div><div class="st">&nbsp;</div><div class="under"></div></div>`;
   const dim = (active&&(!s.inHand||s.folded)) || (!s.connected) || (R&&s.inHand&&s.folded) ;
@@ -504,7 +505,7 @@ function seatHTML(v,i,seated,maxStack,pos=''){
   else if(s.allIn && active) under=`<span class="tag">ALL IN</span>`;
   else if(active && s.last==='Check') under=`<span class="tag" style="color:#6d6d72">CHECK</span>`;
   const turn = v.toAct===i && active;
-  return `<div class="seat ${pos} ${dim?'dim':''} ${turn?'turn':''}">
+  return `<div class="seat ${dim?'dim':''} ${turn?'turn':''}">
     <div class="pie-wrap">${turn?'<div class="pie" data-timer></div>':''}</div>
     <button class="av" data-k="av${esc(s.name)}" data-act="seatTap" data-i="${i}" data-seat-av="${i}">${s.av}${v.dealer===i&&v.handNo?'<b class="d">D</b>':''}</button>
     <div class="nm">${esc(s.name)}</div><div class="st">${chipViz(s.stack,maxStack)}${fmt(s.stack)}</div>

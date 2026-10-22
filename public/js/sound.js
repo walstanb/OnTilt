@@ -43,11 +43,12 @@ function noise({ at = 0, dur = .08, vol = .25, freq = 3000, q = 1, type = 'bandp
 const SOUNDS = {
   deal:   () => noise({ dur: .04, vol: .06, freq: 4200, q: .7 }),
   flip:   () => noise({ dur: .05, vol: .07, freq: 3200, q: .7 }),
-  chip:   () => tone(1900, { dur: .045, type: 'triangle', vol: .07 }),
-  chips:  () => { tone(1900, { dur: .045, type: 'triangle', vol: .07 }); tone(2300, { at: .05, dur: .045, type: 'triangle', vol: .06 }); },
+  // chips: a low, soft "thock" (short sine + a breath of low-passed noise), not a click
+  chip:   () => { tone(300, { dur: .07, vol: .16, slide: -90 }); noise({ dur: .03, vol: .03, freq: 900, type: 'lowpass' }); },
+  chips:  () => { SOUNDS.chip(); setTimeout(() => SOUNDS.chip(), 70); },
   check:  () => tone(170, { dur: .08, vol: .22, slide: -40 }),
   fold:   () => noise({ dur: .12, vol: .05, freq: 1400, q: .5, sweep: -900, type: 'lowpass' }),
-  allin:  () => { tone(1900, { dur: .05, type: 'triangle', vol: .07 }); tone(2300, { at: .05, dur: .05, type: 'triangle', vol: .07 }); tone(2700, { at: .1, dur: .06, type: 'triangle', vol: .06 }); },
+  allin:  () => { SOUNDS.chip(); setTimeout(() => SOUNDS.chip(), 60); setTimeout(() => SOUNDS.chip(), 120); },
   turn:   () => tone(988, { dur: .22, vol: .09 }),
   win:    () => { tone(784, { dur: .18, vol: .08 }); tone(1175, { at: .1, dur: .28, vol: .07 }); },
   lose:   () => {},

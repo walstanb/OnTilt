@@ -36,38 +36,22 @@
   #app.wide .emobar{left:50%;right:auto;width:440px;transform:translateX(-50%);bottom:24px;animation:none}
 }
 
-#app.wide{max-width:none;padding:10px 28px 20px;border:0}
+#app.wide{max-width:1180px;padding:10px 28px 20px;border:0}
 #app.wide .top{grid-template-columns:44px 1fr 44px;max-width:1280px;width:100%;margin:0 auto}
 
-/* table area */
-#app.wide .felt-wrap{flex:1 1 0;min-height:0;container-type:size;display:grid;place-items:center;padding:84px 130px 20px}
-#app.wide .felt{position:relative;width:min(100cqw - 260px, (100cqh - 104px) * 2.05);aspect-ratio:2.05;border-radius:50%;
-  background:#000;
-  border:2px solid var(--line);box-shadow:inset 0 0 0 10px #050506,inset 0 0 0 11px #17171a,0 30px 80px #000}
-
-/* seats on the rail, clockwise from your left; a black backing hides the rail line behind them */
-#app.wide .seat{position:absolute;width:124px;transform:translate(-50%,-50%);z-index:2;background:var(--bg);border-radius:24px;padding:4px 6px 8px}
-#app.wide .seat.empty{background:transparent}
-#app.wide .seat .pie-wrap{height:22px}
-#app.wide .seat .av{font-size:46px}
-#app.wide .seat .nm{font-size:14px;margin-top:4px}
-#app.wide .seat .st{font-size:17px}
-#app.wide .seat .mini{width:30px}
-/* chips / revealed cards sit just inside the table, toward the middle */
-#app.wide .seat .under{position:absolute;height:44px;margin:0;left:50%;top:calc(100% + 8px);transform:translateX(-50%)}
-#app.wide .seat.p1 .under{left:calc(100% + 10px);top:50%;transform:translateY(-50%);justify-content:flex-start}
-#app.wide .seat.p5 .under{left:auto;right:calc(100% + 10px);top:50%;transform:translateY(-50%);justify-content:flex-end}
-#app.wide .seat.p1{left:2%;top:60%}
-#app.wide .seat.p2{left:17%;top:9%}
-#app.wide .seat.p3{left:50%;top:0}
-#app.wide .seat.p4{left:83%;top:9%}
-#app.wide .seat.p5{left:98%;top:60%}
-
-/* board + pot */
-#app.wide .center{position:absolute;left:50%;top:52%;transform:translate(-50%,-50%);width:44%;display:flex;flex-direction:column;align-items:center}
-#app.wide .board{gap:8px;width:100%}
-#app.wide .pot{text-align:center;font-size:30px;margin-top:12px;color:#e8e8ea}
-#app.wide .mybet{position:absolute;left:50%;bottom:7%;transform:translateX(-50%);margin:0;height:40px}
+/* table: the phone layout, widened — a row of players, the board, then your dock. No table graphic. */
+#app.wide .seats{max-width:1080px;width:100%;margin:28px auto 0;gap:12px}
+#app.wide .seat .pie-wrap{height:30px}
+#app.wide .seat .av{font-size:56px}
+#app.wide .seat .nm{font-size:15px;margin-top:8px}
+#app.wide .seat .st{font-size:19px}
+#app.wide .seat .under{height:56px;margin-top:8px}
+#app.wide .seat .mini{width:34px}
+#app.wide .seat.turn .av{filter:drop-shadow(0 0 18px #5fe3a133)}
+#app.wide .center{width:100%;max-width:640px;margin:0 auto;display:flex;flex-direction:column;align-items:center}
+#app.wide .board{gap:12px;width:100%}
+#app.wide .pot{text-align:center;font-size:34px;margin-top:16px;color:#e8e8ea;width:100%}
+#app.wide .mybet{justify-content:center;margin:0 auto 12px;height:40px}
 
 /* bottom dock */
 #app.wide .dock{flex:none;display:grid;grid-template-columns:auto 190px minmax(0,1fr);gap:16px;align-items:stretch;
