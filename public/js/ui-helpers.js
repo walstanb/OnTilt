@@ -17,11 +17,12 @@ export const ICON = {
   smile:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8.5 14.5c1.8 2 5.2 2 7 0"/><circle cx="9" cy="10" r=".6" fill="currentColor"/><circle cx="15" cy="10" r=".6" fill="currentColor"/></svg>',
   link:'<svg viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1"/><path d="M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"/></svg>',
 };
-export function cardHTML(c, cls=''){
-  if(!c) return `<div class="card ghost ${cls}"></div>`;
-  if(c==='back') return `<div class="card back ${cls}"></div>`;
-  const red=c[1]==='h'||c[1]==='d';
-  return `<div class="card ${red?'red':''} ${cls}"><span class="r">${c[0]==='T'?'10':c[0]}</span><span class="s">${SUITCH[c[1]]}</span></div>`;
+export function cardHTML(c, cls='', delay=0){
+  // data-k keys the element by card so the patcher replaces (and re-animates) it when the card changes
+  if(!c) return `<div class="card ghost ${cls}" data-k="ghost"></div>`;
+  if(c==='back') return `<div class="card back ${cls}" data-k="back"></div>`;
+  const red=c[1]==='h'||c[1]==='d', st=delay>0?` style="animation-delay:${delay}ms"`:'';
+  return `<div class="card ${red?'red':''} ${cls}" data-k="${c}"${st}><span class="r">${c[0]==='T'?'10':c[0]}</span><span class="s">${SUITCH[c[1]]}</span></div>`;
 }
 let toastT;
 export function toast(msg, ms=2600){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),ms); }

@@ -1,0 +1,78 @@
+/* ---------- motion ----------
+   Entry animations for elements the renderer inserts, and transitions for the ones it keeps.
+   Easing: a soft "out" curve for things arriving, a quick ease for state changes. */
+:root{ --out:cubic-bezier(.2,.8,.2,1); --spring:cubic-bezier(.34,1.56,.64,1) }
+
+/* screen change (lobby <-> table) */
+#app.enter > *{animation:enter .42s var(--out) both}
+#app.enter > :nth-child(2){animation-delay:.04s}
+#app.enter > :nth-child(3){animation-delay:.08s}
+#app.enter > :nth-child(4){animation-delay:.12s}
+#app.enter > :nth-child(n+5){animation-delay:.16s}
+@keyframes enter{from{opacity:0;transform:translateY(14px)}}
+
+/* cards: deal with a flip, staggered via inline animation-delay */
+.card.deal{animation:deal .5s var(--out) both;transform-origin:50% 60%}
+@keyframes deal{0%{transform:translateY(-18px) rotateY(90deg) scale(.9);opacity:0}
+  60%{opacity:1}100%{transform:none;opacity:1}}
+.card{transition:opacity .3s ease,filter .3s ease}
+.hole{transition:transform .25s var(--out),opacity .25s ease}
+.hole.folded .card{transition:opacity .35s ease,transform .35s var(--out);transform:translateY(6px)}
+
+/* chips pop in when a bet appears or changes */
+.chip{animation:pop .32s var(--spring) both}
+@keyframes pop{from{transform:scale(.4);opacity:0}}
+.chip.win{animation:win .5s var(--spring) both}
+@keyframes win{0%{transform:scale(.4);opacity:0}60%{transform:scale(1.15);opacity:1}100%{transform:none}}
+/* chips travelling between a seat and the pot (positioned by JS) */
+.chip.fly{position:fixed;z-index:40;margin:0;pointer-events:none;animation:none;
+  transition:transform .55s var(--out),opacity .55s ease-in}
+.pot.bump{animation:bump .45s var(--out)}
+@keyframes bump{40%{transform:scale(1.08)}}
+
+/* seats */
+.seat{transition:opacity .35s ease}
+.seat .av{animation:pop .4s var(--spring) both}
+.seat .av,.plus{transition:transform .15s ease,border-color .15s,opacity .2s}
+.seat .av:active,.plus:not(:disabled):active{transform:scale(.92)}
+.pie{animation:fade .25s ease both}
+.tag{animation:fade .25s ease both}
+#app.wide .seat{transition:opacity .35s ease,border-color .3s ease,box-shadow .3s ease}
+#app.wide .seat:has(.pie){border-color:#1f3d2f;box-shadow:0 0 0 1px #1f3d2f,0 0 28px #5fe3a122,0 10px 30px #000a}
+.hand{transition:border-color .3s ease,box-shadow .3s ease}
+.hand.turn{box-shadow:0 0 30px #5fe3a118}
+
+/* controls */
+.btn{transition:background .18s,color .18s,border-color .18s,transform .12s var(--out)}
+.raise{animation:slide .25s var(--out) both}
+.ctrl{animation:fade .2s ease both}
+@keyframes slide{from{opacity:0;transform:translateY(10px)}}
+.lbtn,.sheet .sb,.ico,.smile,.go,.avs button{transition:background .18s,border-color .18s,color .18s,transform .12s var(--out)}
+.lbtn:active,.sheet .sb:active,.go:active,.avs button:active{transform:scale(.97)}
+.panel .big{transition:color .2s}
+.ruler i{transition:height .2s var(--spring),background .2s}
+
+/* sheets: slide in, fade out */
+.sheet-bg{animation:fade .2s ease both}
+.sheet{animation:up .3s var(--out) both}
+.sheet-bg.closing{animation:fadeout .18s ease both}
+.sheet-bg.closing .sheet{animation:down .18s ease-in both}
+@keyframes fadeout{to{opacity:0}}
+@keyframes down{to{transform:translateY(24px);opacity:0}}
+@media (min-width:960px) and (min-height:560px){
+  .sheet{animation:zoom .25s var(--out) both}
+  .sheet-bg.closing .sheet{animation:zoomout .16s ease-in both}
+}
+@keyframes zoom{from{opacity:0;transform:scale(.94)}}
+@keyframes zoomout{to{opacity:0;transform:scale(.96)}}
+
+#toast{transition:transform .35s var(--spring)}
+.banner{animation:slide .3s var(--out) both}
+.center-msg > div{animation:fade .3s ease both}
+.center-msg .sub{display:block;font-size:14px;color:#6d6d72;margin-top:8px;max-width:340px;margin-inline:auto}
+.center-msg code{font-size:13px;color:#b7b7bc}
+.center-msg .retry{margin:22px auto 0;max-width:220px;height:50px;font-size:16px}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms !important;animation-delay:0s !important;transition-duration:.01ms !important}
+}

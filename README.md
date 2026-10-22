@@ -16,8 +16,10 @@ public/              # everything served by GitHub Pages
     lobby.css        # lobby / table setup
     overlays.css     # sheets and toast
     desktop.css      # wide-screen layout: oval table + action dock, hover states
+    motion.css       # animations and transitions
   js/
-    config.js        # app ID, Trystero URL, shot clock
+    config.js        # app ID, relays, TURN servers, shot clock
+    morph.js         # tiny DOM patcher so re-renders keep elements (and their transitions)
     engine.js        # Hold'em rules engine (pure logic, no DOM)
     ui-helpers.js    # formatting, icons, card markup, toast, storage
     app.js           # networking, host loop, rendering, input
@@ -58,4 +60,12 @@ Every push to `main` runs `.github/workflows/deploy.yml`, which syntax-checks th
 ## Notes
 
 - The host could technically see everyone's cards, so play with people you trust. Chips are play money.
-- A few strict networks (some corporate Wi-Fi, some mobile carriers) block direct peer-to-peer connections. Switching networks usually fixes it; for full reliability you can add a TURN server to `joinRoom(...)` in `public/js/app.js` via `rtcConfig`.
+- Players on different networks (mobile data, strict or corporate Wi-Fi) often can't connect directly. They need a TURN relay, or the guest sees "Found the host, but your networks won't connect directly".
+
+## Add a TURN server (recommended)
+
+1. Create a free account at [metered.ca/stun-turn](https://www.metered.ca/stun-turn) and create an app.
+2. Copy its credentials URL: `https://<app>.metered.live/api/v1/turn/credentials?apiKey=...`
+3. Paste it into `TURN_CREDENTIALS_URL` in `public/js/config.js`, commit and push. The deploy runs automatically.
+
+You can also list servers directly in `TURN_SERVERS` (e.g. your own [coturn](https://github.com/coturn/coturn)). The key is visible in the page source, so use a provider that lets you cap usage.

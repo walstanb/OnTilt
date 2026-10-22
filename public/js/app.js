@@ -6,8 +6,9 @@
    fully static and works on GitHub Pages.
    ===================================================================== */
 
-import { APP_ID, TRYSTERO_URL, TURN_MS } from './config.js';
+import { APP_ID, TRYSTERO_URL, TURN_MS, RELAY_URLS, TURN_CREDENTIALS_URL, TURN_SERVERS, JOIN_HINT_MS } from './config.js';
 import { MAXS, rnd, bestOf, handName, mkState, mkSeat, potTotal, startHand, endRound, showdown, applyAction, botMove, fmt } from './engine.js';
+import { morph } from './morph.js';
 import { app, short, esc, fmtCode, STAKES, AVATARS, EMOTES, BOTS, ICON, cardHTML, toast, LS } from './ui-helpers.js';
 
 // ------------------------------ profile ------------------------------
@@ -17,16 +18,27 @@ saveMe();
 
 // ------------------------------ runtime ------------------------------
 let isHost=false, S=null, view=null, net=null, hostPid=null, hostLost=false, tableCode=null;
+let joinIssue='';                // guest: '' | 'slow' | 'blocked' | 'offline' (why we haven't reached the host yet)
 const peers=new Map();           // host: pid -> {token,name,av}
 let timer=null, armedSeq=-1;
 const ui={ raiseOpen:false, raiseTo:0, emoteOpen:false, lastTurnKey:'', lastHand:0, lastBoardLen:0, lastResultsKey:'' };
 const myPid = () => net ? net.selfId : 'local';
 
 // ------------------------------ network ------------------------------
+async function turnServers(){
+  const list=[...TURN_SERVERS];
+  if(TURN_CREDENTIALS_URL){
+    try{ const r=await fetch(TURN_CREDENTIALS_URL,{signal:AbortSignal.timeout(5000)}); if(r.ok) list.push(...await r.json()); }
+    catch(e){ console.warn('TURN credentials fetch failed', e); }
+  }
+  return list;
+}
 async function connect(code){
   try{
-    const { joinRoom, selfId } = await import(TRYSTERO_URL);
-    const room = joinRoom({ appId:APP_ID, password:'pn-'+code }, 'table-'+code);
+    const [{ joinRoom, selfId }, turnConfig] = await Promise.all([import(TRYSTERO_URL), turnServers()]);
+    const room = joinRoom({ appId:APP_ID, password:'pn-'+code, relayConfig:{ urls:RELAY_URLS, warnOnRelayFailure:false },
+      ...(turnConfig.length?{turnConfig}:{}) }, 'table-'+code,
+      { onJoinError: d => { console.warn('join error', d); if(!isHost && !view){ joinIssue='blocked'; render(); } } });
     const act = room.makeAction('m');
     net = { room, act, selfId };
     act.onMessage = (d,ctx) => onNet(d, ctx.peerId);
@@ -36,12 +48,16 @@ async function connect(code){
       else if(pid===hostPid){ hostLost=true; render(); }
     };
     if(isHost){ for(const s of S.seats) if(s&&s.token===me.token) s.pid=selfId; hostSync(); }
-    else act.send({t:'hello',...helloData()}).catch(()=>{});
+    else {
+      // Keep saying hello until the host answers: covers lost messages and a host that opens the table after us.
+      const hi=()=>{ if(view && !hostLost) return; act.send({t:'hello',...helloData()}).catch(()=>{}); };
+      hi(); setInterval(hi, 3000);
+    }
   }catch(e){
     console.error(e);
     net=null;
     if(isHost) toast('Offline mode: friends can’t join, but bots can play', 4000);
-    else { hostLost=true; render(); toast('Could not load the peer-to-peer library', 4000); }
+    else { joinIssue='offline'; render(); toast('Could not load the peer-to-peer library', 4000); }
   }
 }
 const helloData = () => ({ token:me.token, name:me.name||'player', av:me.av });
@@ -54,7 +70,7 @@ function onNet(d, pid){
   if(isHost) return handle(d, pid);
   if(d.t==='state'){
     if(hostPid && hostPid!==pid && !hostLost) return;  // ignore impostors once connected
-    hostPid=pid; hostLost=false; setView(d.v);
+    hostPid=pid; hostLost=false; joinIssue=''; setView(d.v);
   } else if(d.t==='emote' && pid===hostPid) floatEmote(d.seat, d.e);
   else if(d.t==='ended' && pid===hostPid){ view=null; hostLost=true; render(); toast('The host closed the table',4000); }
 }
@@ -169,10 +185,20 @@ let screen='lobby', lobby={ stake:2, mode:'create', code:null };
 const deskMQ = matchMedia('(min-width:960px) and (min-height:560px)');
 deskMQ.addEventListener('change', ()=>render());
 
+let paintedScreen=null;
 function render(prev){
   app.classList.toggle('wide', screen!=='lobby' && deskMQ.matches);
   if(screen==='lobby') return renderLobby();
   return renderTable(prev);
+}
+// Patch #app in place so unchanged elements survive and CSS transitions can run.
+// A screen change swaps the content wholesale with an enter animation instead.
+function paint(html){
+  if(paintedScreen!==screen){
+    paintedScreen=screen; app.innerHTML=html;
+    app.classList.remove('enter'); void app.offsetWidth; app.classList.add('enter');
+    clearTimeout(paint.t); paint.t=setTimeout(()=>app.classList.remove('enter'), 700);
+  } else morph(app, html);
 }
 
 function renderLobby(){
@@ -180,7 +206,7 @@ function renderLobby(){
   const avs=AVATARS.map(a=>`<button data-act="av" data-v="${a}" class="${a===me.av?'sel':''}">${a}</button>`).join('');
   const prof=`<div class="prof"><input id="nm" placeholder="Your name" maxlength="14" autocomplete="off" value="${esc(me.name)}"><div class="avs">${avs}</div></div>`;
   if(lobby.mode==='create'){
-    app.innerHTML=`<div class="lobby">
+    paint(`<div class="lobby">
       <div class="panel">
         <div class="top"><span></span><div class="code">${fmtCode(lobby.code)}</div><span></span></div>
         <div class="lbl g">Stakes</div><div class="big g">${sb} / ${bb}</div>
@@ -191,20 +217,20 @@ function renderLobby(){
       <div class="grow"></div>
       <button class="lbtn out" data-act="invite">${ICON.link}COPY INVITE LINK</button>
       <button class="lbtn wh" data-act="start">START GAME</button>
-    </div>`;
+    </div>`);
     const ruler=document.getElementById('ruler');
     const pick=e=>{ const r=ruler.getBoundingClientRect(); const x=(e.clientX-r.left)/r.width;
       const k=Math.max(0,Math.min(STAKES.length-1,Math.round(x*(STAKES.length-1)))); if(k!==lobby.stake){ lobby.stake=k; readName(); renderLobby(); navigator.vibrate?.(8); } };
     ruler.onpointerdown=e=>{ ruler.setPointerCapture(e.pointerId); pick(e); ruler.onpointermove=pick; };
     ruler.onpointerup=()=>{ ruler.onpointermove=null; };
   } else {
-    app.innerHTML=`<div class="lobby">
+    paint(`<div class="lobby">
       <div class="top"><button class="ico" data-act="home">${ICON.back}</button><div class="code">${fmtCode(lobby.code)}</div><span></span></div>
       <div class="join-h"><div class="big">You're invited</div><p>Pick a name and an avatar, then join the table.</p></div>
       ${prof}
       <div class="grow"></div>
       <button class="lbtn wh" data-act="join">JOIN TABLE</button>
-    </div>`;
+    </div>`);
   }
 }
 function readName(){ const el=document.getElementById('nm'); if(el){ me.name=el.value.trim().slice(0,14); saveMe(); } }
@@ -214,9 +240,14 @@ function renderTable(prev){
   const head=`<div class="top"><button class="ico" data-act="leave" aria-label="Leave">${ICON.back}</button>
     <div class="code">${v?`${fmtCode(tableCode)}`:''}</div><button class="ico" data-act="menu" aria-label="Menu">${ICON.menu}</button></div>`;
   if(!v){
-    app.innerHTML=head+`<div class="center-msg"><div>${hostLost
-      ? `Can't reach the host right now.<br>Ask them to keep the table open, then refresh.`
-      : `<div class="spin"></div>Looking for the table host…<br><span style="font-size:13px">Table ${fmtCode(tableCode)}</span>`}</div></div>`;
+    const why = {
+      slow:`Still looking for the host…<br><span class="sub">Make sure the host has this table open in a browser tab and their screen is on.</span>`,
+      blocked:`Found the host, but your networks won’t connect directly.<br><span class="sub">Try another network (Wi-Fi ↔ mobile data). The site owner can fix this for good by adding a TURN server in <code>js/config.js</code>.</span>`,
+      offline:`Couldn’t load the connection library.<br><span class="sub">Check your internet connection.</span>`,
+    }[joinIssue] || (hostLost ? `Lost the host.<br><span class="sub">Ask them to keep the table open.</span>` : '');
+    paint(head+`<div class="center-msg"><div>${why
+      ? `${joinIssue==='offline'?'':'<div class="spin"></div>'}${why}<button class="lbtn out retry" data-act="retry">Retry</button>`
+      : `<div class="spin"></div>Connecting to the table…<br><span class="sub">Table ${fmtCode(tableCode)}</span>`}</div></div>`);
     return;
   }
   const seated=v.mySeat>=0, anchor=seated?v.mySeat:0, mine=seated?v.seats[v.mySeat]:null;
@@ -229,13 +260,13 @@ function renderTable(prev){
 
   // --- board
   const newCards = prev && prev.handNo===v.handNo ? prev.board.length : 0;
-  const board=[0,1,2,3,4].map(k=>v.board[k] ? cardHTML(v.board[k], k>=newCards?'deal':'') : cardHTML('back')).join('');
+  const board=[0,1,2,3,4].map(k=>v.board[k] ? cardHTML(v.board[k], k>=newCards?'deal':'', (k-newCards)*90) : cardHTML('back')).join('');
 
   // --- controls
   const myTurn = seated && v.toAct===v.mySeat && active;
   let ctrl='', raisePanel='', betChip='';
-  if(mine && mine.bet>0) betChip=`<span class="chip">${fmt(mine.bet)}</span>`;
-  if(R && seated && R.won[v.mySeat]) betChip=`<span class="chip win">+${fmt(R.won[v.mySeat])}</span>`;
+  if(mine && mine.bet>0) betChip=`<span class="chip" data-k="b${mine.bet}">${fmt(mine.bet)}</span>`;
+  if(R && seated && R.won[v.mySeat]) betChip=`<span class="chip win" data-k="w">+${fmt(R.won[v.mySeat])}</span>`;
   if(!seated){
     const full=v.seats.every(Boolean);
     ctrl=`<div class="ctrl"><button class="btn wide" disabled>${full?'Table is full · watching':'Tap + to take a seat'}</button></div>`;
@@ -280,7 +311,7 @@ function renderTable(prev){
   const a=v.seats[anchor];
   let holeCards = mine && mine.cards && mine.cards.length ? mine.cards : null;
   const holeNew = holeCards && (!prev || prev.handNo!==v.handNo);
-  const hole = holeCards ? holeCards.map(c=>cardHTML(c, holeNew?'deal':'')).join('')
+  const hole = holeCards ? holeCards.map((c,k)=>cardHTML(c, holeNew?'deal':'', k*120)).join('')
              : (!seated && a && a.cards) ? a.cards.map(c=>cardHTML(c)).join('') : cardHTML(null)+cardHTML(null);
   let hn='';
   if(seated && holeCards){ hn = R&&R.hands[v.mySeat] ? R.hands[v.mySeat] : handName(bestOf([...holeCards,...v.board])); }
@@ -306,19 +337,24 @@ function renderTable(prev){
   if(deskMQ.matches){
     let ring=''; for(let k=1;k<MAXS;k++) ring+=seatHTML(v,(anchor+k)%MAXS,seated,'p'+k);
     const keys = myTurn && !ui.raiseOpen ? `<div class="keys"><kbd>F</kbd> fold <kbd>C</kbd> check / call <kbd>R</kbd> raise <kbd>↑</kbd> custom</div>` : '';
-    app.innerHTML = head + banner +
+    const fx=captureFx();
+    paint(head + banner +
       `<div class="felt-wrap"><div class="felt">${ring}
         <div class="center"><div class="board">${board}</div><div class="pot">${v.pot>0||active?fmt(v.pot):''}</div></div>
         <div class="mybet">${betChip}</div></div></div>
        <div class="dock"><div class="hole ${mine&&mine.folded?'folded':''}" id="hole">${hole}</div>${box}
-         <div class="act">${raisePanel}${ctrl}${keys}</div></div>${emo}`;
-  } else
-  app.innerHTML = head + banner +
+         <div class="act">${raisePanel}${ctrl}${keys}</div></div>${emo}`);
+    runFx(fx, prev, v);
+  } else {
+  const fx=captureFx();
+  paint(head + banner +
     `<div class="seats">${top}</div><div class="grow" style="flex-grow:1"></div>
      <div class="board">${board}</div><div class="pot">${v.pot>0||active?fmt(v.pot):''}</div>
      <div class="grow" style="flex-grow:1.3"></div>
      ${raisePanel || `<div class="mybet">${betChip}</div>`}
-     ${ctrl}${meRow}${emo}`;
+     ${ctrl}${meRow}${emo}`);
+  runFx(fx, prev, v);
+  }
 
   const rng=document.getElementById('rng');
   if(rng) rng.oninput=()=>{ ui.raiseTo=+rng.value; document.getElementById('ramt').textContent=fmt(ui.raiseTo); };
@@ -328,19 +364,19 @@ function renderTable(prev){
 function seatHTML(v,i,seated,pos=''){
   const s=v.seats[i], R=v.results, active=v.street!=='idle'&&v.street!=='showdown';
   if(!s) return `<div class="seat ${pos}"><div class="pie-wrap"></div>
-    <button class="plus" data-act="sit" data-i="${i}" ${seated&&!v.isHost?'disabled':''} aria-label="Sit here"></button>
+    <button class="plus" data-k="plus" data-act="sit" data-i="${i}" ${seated&&!v.isHost?'disabled':''} aria-label="Sit here"></button>
     <div class="nm">&nbsp;</div><div class="st">&nbsp;</div><div class="under"></div></div>`;
   const dim = (active&&(!s.inHand||s.folded)) || (!s.connected) || (R&&s.inHand&&s.folded) ;
   let under='';
-  if(R && R.reveal[i]) under = R.reveal[i].map(c=>cardHTML(c,'mini')).join('') + (R.won[i]?`<span class="chip win" style="margin-left:2px">+${short(R.won[i])}</span>`:'');
-  else if(R && R.won[i]) under=`<span class="chip win">+${fmt(R.won[i])}</span>`;
-  else if(s.bet>0) under=`<span class="chip">${fmt(s.bet)}</span>`;
+  if(R && R.reveal[i]) under = R.reveal[i].map(c=>cardHTML(c,'mini')).join('') + (R.won[i]?`<span class="chip win" data-k="w" style="margin-left:2px">+${short(R.won[i])}</span>`:'');
+  else if(R && R.won[i]) under=`<span class="chip win" data-k="w">+${fmt(R.won[i])}</span>`;
+  else if(s.bet>0) under=`<span class="chip" data-k="b${s.bet}">${fmt(s.bet)}</span>`;
   else if(s.allIn && active) under=`<span class="tag">ALL IN</span>`;
   else if(active && s.last==='Check') under=`<span class="tag" style="color:#6d6d72">CHECK</span>`;
   const turn = v.toAct===i && active;
   return `<div class="seat ${pos} ${dim?'dim':''}">
     <div class="pie-wrap">${turn?'<div class="pie" data-timer></div>':''}</div>
-    <button class="av" data-act="seatTap" data-i="${i}" data-seat-av="${i}">${s.av}${v.dealer===i&&v.handNo?'<b class="d">D</b>':''}</button>
+    <button class="av" data-k="av${esc(s.name)}" data-act="seatTap" data-i="${i}" data-seat-av="${i}">${s.av}${v.dealer===i&&v.handNo?'<b class="d">D</b>':''}</button>
     <div class="nm">${esc(s.name)}${s.bot?'':''}</div><div class="st">${fmt(s.stack)}</div>
     <div class="under">${under}</div></div>`;
 }
@@ -371,15 +407,59 @@ function floatEmote(seat,e){
   document.body.appendChild(f); setTimeout(()=>f.remove(),2300);
 }
 
+// ------------------------------ motion ------------------------------
+// Bets slide into the pot when a betting round ends; winnings slide from the pot to the winner;
+// the pot counts up. Everything is skipped when the user prefers reduced motion.
+const calm = matchMedia('(prefers-reduced-motion: reduce)');
+let potShown=0, potRaf=0;
+function captureFx(){
+  return [...app.querySelectorAll('.chip:not(.win)')].map(el=>({el, r:el.getBoundingClientRect(), html:el.outerHTML}));
+}
+function flyChip(html, from, to, delay=0){
+  const t=document.createElement('div'); t.innerHTML=html; const c=t.firstElementChild; c.classList.add('fly');
+  Object.assign(c.style,{left:from.left+'px',top:from.top+'px',width:from.width+'px',height:from.height+'px',transitionDelay:delay+'ms'});
+  document.body.appendChild(c);
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    c.style.transform=`translate(${to.left+to.width/2-from.left-from.width/2}px,${to.top+to.height/2-from.top-from.height/2}px) scale(.7)`;
+    c.style.opacity='0';
+  }));
+  setTimeout(()=>c.remove(), 650+delay);
+}
+function runFx(fx, prev, v){
+  const potEl=app.querySelector('.pot');
+  if(!calm.matches && prev && potEl){
+    const pr=potEl.getBoundingClientRect(), target={left:pr.left+pr.width/2-20,top:pr.top,width:40,height:pr.height};
+    // bets that vanished this render were collected into the pot
+    if(prev.street!==v.street || prev.handNo!==v.handNo)
+      fx.filter(f=>!f.el.isConnected).forEach((f,k)=>flyChip(f.html, f.r, target, k*40));
+    // new winnings fly out of the pot
+    if(v.results && !prev.results)
+      app.querySelectorAll('.chip.win').forEach((el,k)=>{ const r=el.getBoundingClientRect();
+        el.style.animationDelay=(350+k*80)+'ms';
+        flyChip(`<span class="chip win"></span>`, {left:target.left,top:target.top,width:r.width,height:r.height}, r, k*80); });
+  }
+  // pot counts toward its new value
+  if(potEl && v.pot>0){
+    const to=v.pot, from=calm.matches||!prev||prev.handNo!==v.handNo?to:potShown;
+    cancelAnimationFrame(potRaf); potShown=to;
+    if(from!==to){ const t0=performance.now();
+      const step=now=>{ const k=Math.min(1,(now-t0)/450), e=1-Math.pow(1-k,3);
+        potEl.textContent=fmt(from+(to-from)*e); if(k<1) potRaf=requestAnimationFrame(step); };
+      potEl.textContent=fmt(from); potRaf=requestAnimationFrame(step);
+      potEl.classList.remove('bump'); void potEl.offsetWidth; potEl.classList.add('bump'); }
+  } else potShown=0;
+}
+
 // ------------------------------ sheets ------------------------------
 function sheet(title, text, buttons){
   const bg=document.createElement('div'); bg.className='sheet-bg';
   bg.innerHTML=`<div class="sheet"><h3>${esc(title)}</h3>${text?`<p>${text}</p>`:''}${buttons.map((b,k)=>`<button class="sb ${b.cls||''}" data-k="${k}">${esc(b.label)}</button>`).join('')}
     <button class="sb" data-k="x" style="background:transparent;color:var(--mut)">Cancel</button></div>`;
-  bg.onclick=e=>{ const k=e.target.dataset?.k; if(e.target===bg||k==='x'){ bg.remove(); return; }
-    if(k!=null){ bg.remove(); buttons[+k].fn?.(); } };
+  bg.onclick=e=>{ const k=e.target.dataset?.k; if(e.target===bg||k==='x'){ closeSheet(bg); return; }
+    if(k!=null){ closeSheet(bg); buttons[+k].fn?.(); } };
   document.body.appendChild(bg);
 }
+function closeSheet(bg){ if(bg.classList.contains('closing')) return; bg.classList.add('closing'); setTimeout(()=>bg.remove(),180); }
 function inviteUrl(){ return location.origin+location.pathname+'#'+(tableCode||lobby.code); }
 async function shareInvite(){
   const url=inviteUrl();
@@ -423,6 +503,7 @@ app.addEventListener('click', e=>{
     case 'em': ui.emoteOpen=false; send({t:'emote',e:b.dataset.v}); render(); break;
     case 'rebuy': send({t:'rebuy'}); break;
     case 'stand': send({t:'stand'}); break;
+    case 'retry': location.reload(); break;
     case 'menu': {
       const btns=[{label:'Invite friends',cls:'primary',fn:shareInvite},{label:'Ledger',fn:ledgerSheet}];
       if(v && v.mySeat>=0) btns.push({label:'Stand up',fn:()=>send({t:'stand'})});
@@ -438,9 +519,9 @@ app.addEventListener('click', e=>{
 // keyboard shortcuts (desktop): F fold, C / space check-call, R min-raise, ↑ custom raise, Enter confirm, Esc close
 document.addEventListener('keydown',e=>{
   if(e.metaKey||e.ctrlKey||e.altKey||e.target.closest?.('input:not([type=range])')) return;
-  if(e.key==='Escape'){ const bg=document.querySelector('.sheet-bg'); if(bg){ bg.remove(); return; }
+  if(e.key==='Escape'){ const bg=document.querySelector('.sheet-bg:not(.closing)'); if(bg){ closeSheet(bg); return; }
     if(ui.emoteOpen){ ui.emoteOpen=false; render(); return; } if(ui.raiseOpen){ ui.raiseOpen=false; render(); } return; }
-  if(screen==='lobby' || document.querySelector('.sheet-bg')) return;
+  if(screen==='lobby' || document.querySelector('.sheet-bg:not(.closing)')) return;
   const acts={ f:['fold'], c:['check','call'], ' ':['check','call'], r:['raiseMin'], arrowup:['raiseOpen'], enter:['raiseGo'] }[e.key.toLowerCase()];
   if(!acts) return;
   const b=acts.map(a=>app.querySelector(`button[data-act="${a}"]:not(:disabled)`)).find(Boolean);
@@ -466,7 +547,7 @@ function resumeHost(code){
 }
 function startJoining(){
   tableCode=lobby.code; isHost=false; screen='table'; render(); connect(tableCode);
-  setTimeout(()=>{ if(!view && screen==='table'){ hostLost=true; render(); } }, 20000);
+  setTimeout(()=>{ if(!view && screen==='table' && !joinIssue){ joinIssue='slow'; render(); } }, JOIN_HINT_MS);
 }
 function endTable(){
   sheet('Close the table?','Everyone will be disconnected and the table can’t be resumed.',[{label:'Close table',cls:'danger',fn:()=>{
