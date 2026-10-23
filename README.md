@@ -28,6 +28,7 @@ public/              # everything served by GitHub Pages
     morph.js         # tiny DOM patcher so re-renders keep elements (and their transitions)
     engine.js        # Hold'em rules engine (pure logic, no DOM)
     ui-helpers.js    # formatting, icons, card markup, toast, storage
+    voice.js         # voice chat: mic streams over the WebRTC room, mute, speaking detection
     app.js           # networking, host loop, rendering, input
   assets/favicon.svg
   sw.js              # service worker: caches the app so it opens without internet
@@ -80,6 +81,7 @@ Every push to `main` runs `.github/workflows/deploy.yml`, which syntax-checks th
 - **Raises** must at least double the current bet (opening bets are at least one big blind).
 - **Live actions:** each seat shows what that player just did (Raise, Call, All in…), and the line under the pot says it in words ("lolaa raises to 40").
 - **Pre-actions:** while others act, pick Check / Fold, Check, Call X or Call any (Fold, Call X, Call any when facing a bet). It fires when your turn comes if it still applies; a pre-check is cancelled if someone bets, a pre-call if the amount changes.
+- **Voice chat**: tap the mic in the bottom-right of your box to join (your browser asks for the microphone), tap again to mute. Audio goes straight between players over the table's WebRTC connections. Players in voice get a mic badge and a green ring while talking. Tap a player to **Mute for me** (only you stop hearing them) or **Mute for everyone** (turns their mic off; they can turn it back on). Once someone unmutes themselves after being muted, nobody can mute them for everyone again for 4 minutes. Not available in offline (Wi-Fi QR) mode.
 - **Settings** (`•••` > **Settings**): card backs (Classic Red is the default; Stripes, Cobalt, Mint, Sunny, Ink; saved per device), shown on undealt board cards and your hidden hand and sound & vibration toggles. On iPhone (any browser, iOS 18+) vibration uses light system haptic taps, since iOS browsers don't support the web vibration API.
 - **Desktop:** wide screens use the same open layout as phones, widened, with an action bar at the bottom. Shortcuts: `F` fold, `C` or `Space` check/call, `R` min-raise, `↑` custom raise, `Enter` confirm, `H` hide cards, `Esc` close.
 - **Raise:** tap **Raise** for a min-raise, or **↑** for the slider with ½ Pot / Pot / All in.

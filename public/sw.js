@@ -9,7 +9,7 @@ const FILES = [
   'assets/icon-32.png', 'assets/icon-192.png', 'assets/icon-512.png',
   'css/base.css', 'css/table.css', 'css/controls.css', 'css/lobby.css', 'css/overlays.css',
   'css/desktop.css', 'css/features.css', 'css/motion.css',
-  'js/app.js', 'js/avatars.js', 'js/config.js', 'js/engine.js', 'js/lan.js', 'js/morph.js', 'js/qr.js', 'js/scan.js', 'js/sound.js', 'js/ui-helpers.js',
+  'js/app.js', 'js/avatars.js', 'js/config.js', 'js/engine.js', 'js/lan.js', 'js/morph.js', 'js/qr.js', 'js/scan.js', 'js/sound.js', 'js/ui-helpers.js', 'js/voice.js',
   'vendor/jsQR.min.js', 'vendor/qrcode.min.js',
 ];
 const CDN = ['esm.sh', 'fonts.googleapis.com', 'fonts.gstatic.com'];

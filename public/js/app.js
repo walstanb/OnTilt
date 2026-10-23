@@ -16,6 +16,7 @@ import { play, buzz, fx as fxPrefs } from './sound.js';
 import { qrSVG } from './qr.js';
 import { makeOffer, answerOffer, acceptAnswer, opened } from './lan.js';
 import { startScanner } from './scan.js';
+import { voice, voiceRoom, voicePeerJoin, voicePeerLeave, joinVoice, leaveVoice, setMuted, silence } from './voice.js';
 
 // ------------------------------ profile ------------------------------
 const me = LS.get('pp-me', null) || { token: crypto.randomUUID?crypto.randomUUID():String(Math.random()).slice(2), name:'', av:AVATARS[0] };
@@ -110,8 +111,9 @@ async function connect(code){
     const act = room.makeAction('m');
     net = { room, act, selfId };
     act.onMessage = (d,ctx) => onNet(d, ctx.peerId);
-    room.onPeerJoin = pid => { if(isHost) return; act.send({t:'hello',...publicHello()},{target:pid}).catch(()=>{}); };
-    room.onPeerLeave = lost;
+    room.onPeerJoin = pid => { voicePeerJoin(pid); if(isHost) return; act.send({t:'hello',...publicHello()},{target:pid}).catch(()=>{}); };
+    room.onPeerLeave = pid => { voicePeerLeave(pid); lost(pid); };
+    voiceRoom(room);
     if(isHost){ for(const s of S.seats) if(s&&s.token===me.token) s.pid=selfId; hostSync(); }
     else {
       // Keep saying hello until the host answers: covers lost messages and a host that opens the table after us.
@@ -143,7 +145,7 @@ function wire(pid, ch, pc){
   pc.addEventListener('connectionstatechange', () => { if(pc.connectionState==='failed' || pc.connectionState==='closed') gone(); });
 }
 function lost(pid){
-  if(isHost){ peers.delete(pid); for(const s of S.seats) if(s&&s.pid===pid){ s.connected=false; } S.seq++; hostSync(); }
+  if(isHost){ peers.delete(pid); for(const s of S.seats) if(s&&s.pid===pid){ s.connected=false; s.voice=null; } S.seq++; hostSync(); }
   else if(pid===hostPid){ hostLost=true; armTakeover(); render(); }
 }
 
@@ -153,6 +155,7 @@ function lost(pid){
 // TAKEOVER_MS, the backup becomes the host: the unfinished hand is cancelled and bets go back.
 // Every host broadcasts a beacon; an older host that comes back sees a newer one and rejoins as a player.
 const TAKEOVER_MS=5000, GRACE_MS=20000, HEARTBEAT_MS=2000, SILENCE_MS=6000;
+const VOICE_GUARD_MS=4*60000;   // after unmuting themselves, a player muted by someone else can't be muted again this long
 let lastHeard=0;   // guest: last message from the host
 let ended=false;
 const bk={ key:null, pending:false, sentAt:0, snap:null, chain:null, root:null, at:0, timer:null };
@@ -265,6 +268,7 @@ function onNet(d, pid){
   } else if(d.t==='emote' && pid===hostPid) floatEmote(d.seat, d.e);
   else if(d.t==='ended' && pid===hostPid){ ended=true; view=null; hostLost=true; render(); toast('The host closed the table',4000); }
   else if(d.t==='snap' && pid===hostPid && !hostLost){ bk.snap=d.s; bk.chain=d.chain; bk.root=d.root; bk.at=Date.now(); }
+  else if(d.t==='vmuted' && pid===hostPid) mutedBy(d.by);
   else if(d.t==='replaced' && pid===hostPid){ replaced=true; view=null; hostLost=true; render(); }
 }
 
@@ -356,6 +360,17 @@ function handle(d, pid){
       [S.sb,S.bb]=blindsFor(T.baseSb,0); S.dealer=-1; S.handNo=0; S.log=[];
       for(const s of S.seats) if(s) s.stack=T.stack;
       note('Shuffle up and deal!','level'); S.seq++; break; }
+    case 'voice': { if(i<0) return; const s=S.seats[i], was=s.voice;
+      const vid=String(d.vid||'').slice(0,16); if(!/^[a-z0-9]+$/.test(vid)) return;
+      s.voice = d.on ? { vid, muted:!!d.muted, forced:!!(was?.forced && d.muted), guardUntil:was?.guardUntil||0 } : null;
+      // muted by someone else, then unmuted themselves: nobody can mute them again for a while
+      if(s.voice && was?.forced && !d.muted) s.voice.guardUntil=Date.now()+VOICE_GUARD_MS;
+      S.seq++; break; }
+    case 'vmute': { const k=d.seat|0, s=S.seats[k]; if(i<0 || k===i || !s?.voice || s.voice.muted || s.voice.guardUntil>Date.now()) return;
+      s.voice.muted=true; s.voice.forced=true;
+      const by=S.seats[i].name;
+      if(s.pid===myPid()) setTimeout(()=>mutedBy(by)); else netSend({t:'vmuted',by}, s.pid);
+      S.seq++; break; }
     case 'cstart': { if(!host||tourOn()||S.started) return;
       if(S.seats.filter(Boolean).length<2){ toast('Need at least 2 players'); return; }
       S.started=true; S.seq++; break; }
@@ -420,6 +435,7 @@ function viewFor(pid){
     name:s.name, av:s.av, stack:s.stack, bet:s.bet, folded:s.folded, allIn:s.allIn, inHand:s.inHand, bot:s.bot,
     connected:s.connected||s.bot, leaving:s.leaving, last:s.last, acts:s.acts||0, noReraise:s.noReraise, sittingOut:!!s.sittingOut,
     cards: i===mySeat ? [...s.cards] : (R&&R.reveal[i]) ? R.reveal[i] : (R&&s.show&&s.cards.length) ? s.cards : (s.inHand&&!s.folded&&s.cards.length ? ['back','back'] : null),
+    voice: s.voice ? { vid:s.voice.vid, muted:s.voice.muted, guard:Math.max(0,(s.voice.guardUntil||0)-Date.now()) } : null,
     show:!!s.show, shownHand: R&&s.show&&!R.reveal[i]&&s.cards.length ? handName(bestOf([...s.cards,...S.board])) : '',
   });
   // mid-hand, chips a player has bet are still theirs until the hand is settled
@@ -453,10 +469,35 @@ function broadcastEmote(seat,e){
   floatEmote(seat,e);
 }
 
+// ------------------------------ voice ------------------------------
+function sendVoice(){ send({t:'voice', on:voice.on, muted:voice.muted, vid:voice.vid}); }
+// someone muted me for everyone: the mic goes off here, and I can turn it back on myself
+function mutedBy(by){
+  if(!voice.on || voice.muted) return;
+  setMuted(true); sendVoice(); render(); buzz(20);
+  toast(`${by} muted you · tap the mic to unmute`, 4000);
+}
+async function micTap(){
+  if(!voice.on){
+    try{ await joinVoice(); }
+    catch(e){ toast(e?.name==='NotAllowedError' ? 'Microphone blocked: allow it in your browser settings' : 'Voice needs an internet connection', 4000); return; }
+    play('tick'); sendVoice(); render(); toast('Voice on · tap the mic to mute'); return;
+  }
+  setMuted(!voice.muted); sendVoice(); render();
+}
+// speaking rings update in place, without a re-render
+voice.onTalk = () => { for(const el of document.querySelectorAll('[data-vid]')) el.classList.toggle('talk', voice.talking.has(el.dataset.vid)); };
+const vidAttr = vid => vid ? ` data-vid="${esc(vid)}"` : '';
+const talkCls = vid => vid && voice.talking.has(vid) ? 'talk' : '';
+
 // ------------------------------ client view ------------------------------
 function setView(v){
   backupDuty(v);
   const prev=view; v.recvAt=performance.now(); view=v;
+  if(voice.on){
+    if(v.mySeat<0){ leaveVoice(); }                           // voice is for players at the table
+    else if(!v.seats[v.mySeat].voice && performance.now()-(ui.vSent||0)>3000){ ui.vSent=performance.now(); setTimeout(sendVoice); }   // a new host doesn't know yet
+  }
   const turnKey = v.handNo+':'+v.street+':'+v.toAct+':'+v.curBet;
   const myTurn = v.mySeat>=0 && v.toAct===v.mySeat && isActive(v);
   if(turnKey!==ui.lastTurnKey){ ui.lastTurnKey=turnKey; ui.raiseOpen=false; }
@@ -566,7 +607,7 @@ function paint(html){
 const brand = sub => `<div class="brand"><span class="wm">${LOGO}<span>On<b>Tilt</b></span></span>${sub?`<small>${sub}</small>`:''}</div>`;
 // Logo mark: a spade card knocked off-square in front of a straight one. Same art as assets/favicon.svg,
 // except the straight card is masked where the tilted one covers it, so no black edge shows on grey panels.
-const LOGO = `<svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#eaf8e4"/><stop offset="1" stop-color="#8fd6ac"/></linearGradient></defs><rect x="4.5" y="7.5" width="13" height="19" rx="3" fill="#5c5c63" stroke="#000" stroke-width="1.6" transform="rotate(-10 11 17)"/><g transform="rotate(14 19.5 15.5)"><rect x="12.5" y="5.5" width="14" height="20" rx="3.2" fill="url(#lg)" stroke="#000" stroke-width="1.6"/><path d="M19.5 10.4c-2.3 2.3-4.3 3.7-4.3 5.7a2.3 2.3 0 0 0 3.8 1.7l-.9 2.6h2.8l-.9-2.6a2.3 2.3 0 0 0 3.8-1.7c0-2-2-3.4-4.3-5.7z" fill="#0b0b0c"/></g></svg>`;
+const LOGO = `<svg class="mark" viewBox="2 2.3 27.7 27" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#eaf8e4"/><stop offset="1" stop-color="#8fd6ac"/></linearGradient></defs><rect x="4.5" y="7.5" width="13" height="19" rx="3" fill="#5c5c63" stroke="#000" stroke-width="1.6" transform="rotate(-10 11 17)"/><g transform="rotate(14 19.5 15.5)"><rect x="12.5" y="5.5" width="14" height="20" rx="3.2" fill="url(#lg)" stroke="#000" stroke-width="1.6"/><path d="M19.5 10.4c-2.3 2.3-4.3 3.7-4.3 5.7a2.3 2.3 0 0 0 3.8 1.7l-.9 2.6h2.8l-.9-2.6a2.3 2.3 0 0 0 3.8-1.7c0-2-2-3.4-4.3-5.7z" fill="#0b0b0c"/></g></svg>`;
 const mmss = ms => { const s=Math.ceil(ms/1000); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); };
 // blinds go up between hands, so once the clock runs out they rise when this hand ends
 const lvlLeft = ms => ms>0 ? mmss(ms) : 'up next hand';
@@ -782,10 +823,11 @@ function renderTable(prev){
   if(a){
     box=`<div class="hand ${handTurn?'turn':''}" ${handTurn&&v.turnLeft?'data-timer':''} data-seat-av="${anchor}">
       ${seated && hn && !hidden ? `<button class="hn hnb" data-act="ranks" aria-label="${esc(hn)} · see hand rankings">${esc(hn)}</button>` : `<div class="hn">${esc(hn)}</div>`}
-      ${seated?`<button class="av" data-act="odds" aria-label="Your odds">`:'<div class="av">'}${avatarSVG(a.av)}${v.dealer===anchor&&v.handNo?'<b class="d">D</b>':''}${seated?'</button>':'</div>'}
+      ${seated?`<button class="av ${voice.on?talkCls(voice.vid):''}"${voice.on?vidAttr(voice.vid):''} data-act="odds" aria-label="Your odds">`:'<div class="av">'}${avatarSVG(a.av)}${v.dealer===anchor&&v.handNo?'<b class="d">D</b>':''}${seated?'</button>':'</div>'}
       ${seated && ui.odds.open ? oddsHTML() : ''}
       <div class="st">${a.stack>=1e6?short(a.stack):fmt(a.stack)}</div>
-      ${seated?`<button class="smile" data-act="emote" aria-label="Reactions">${ICON.smile}</button><button class="rkbtn" data-act="ranks" aria-label="Hand rankings">${ICON.ranks}</button>`:''}</div>`;
+      ${seated?`<button class="smile" data-act="emote" aria-label="Reactions">${ICON.smile}</button><button class="rkbtn" data-act="ranks" aria-label="Hand rankings">${ICON.ranks}</button>
+        <button class="mic ${voice.on?(voice.muted?'off':'live'):''}" data-act="mic" aria-label="${!voice.on?'Join voice chat':voice.muted?'Unmute your mic':'Mute your mic'}" aria-pressed="${voice.on&&!voice.muted}">${voice.on&&!voice.muted?ICON.mic:ICON.micOff}</button>`:''}</div>`;
   } else {
     box=`<div class="hand"><div class="hn">Open seat</div><button class="plus" data-k="plus" data-act="sit" data-i="${anchor}" ${seated?'disabled':''}></button><div class="hn"></div></div>`;
   }
@@ -903,7 +945,7 @@ function seatHTML(v,i,seated,maxStack){
   const turn = v.toAct===i && active;
   return `<div class="seat ${dim?'dim':''} ${turn?'turn':''}">
     <div class="pie-wrap">${turn?'<div class="pie" data-timer></div>':''}</div>
-    <button class="av" data-k="av${esc(s.name)}" data-act="seatTap" data-i="${i}" data-seat-av="${i}" aria-label="${esc(s.name)}, ${fmt(s.stack)} chips${s.bot?', bot':''}${!s.connected?', disconnected':''}">${avatarSVG(s.av)}${v.dealer===i&&v.handNo?'<b class="d">D</b>':''}</button>
+    <button class="av ${talkCls(s.voice?.vid)}"${vidAttr(s.voice?.vid)} data-k="av${esc(s.name)}" data-act="seatTap" data-i="${i}" data-seat-av="${i}" aria-label="${esc(s.name)}, ${fmt(s.stack)} chips${s.bot?', bot':''}${!s.connected?', disconnected':''}${s.voice?(s.voice.muted?', mic muted':', in voice'):''}">${avatarSVG(s.av)}${s.voice?`<span class="vb ${s.voice.muted||voice.silenced.has(s.voice.vid)?'off':''}">${s.voice.muted||voice.silenced.has(s.voice.vid)?ICON.micOff:ICON.mic}</span>`:''}${v.dealer===i&&v.handNo?'<b class="d">D</b>':''}</button>
     <div class="nm">${esc(s.name)}</div><div class="st">${amt(s.stack)}</div>
     <div class="under">${under}</div></div>`;
 }
@@ -1196,10 +1238,23 @@ app.addEventListener('click', e=>{
       if(v.mySeat<0) send({t:'sit',seat:i});
       else if(v.isHost) sheet('Open seat','Add a bot to fill this seat?',[{label:'Add bot',cls:'primary',fn:()=>send({t:'addbot',seat:i})}]);
       break; }
-    case 'seatTap': { const i=+b.dataset.i, s=v.seats[i];
-      if(v.isHost && s && i!==v.mySeat) sheet(s.name, s.bot?'This seat is a bot.': v.tour?.started ? 'Remove this player? They forfeit the tournament.' : 'Remove this player from the table? Their chips are cashed out in the ledger.',
-        [{label:s.bot?'Remove bot':'Remove player',cls:'danger',fn:()=>send({t:'kick',seat:i})}]);
+    case 'seatTap': { const i=+b.dataset.i, s=v.seats[i]; if(!s || i===v.mySeat) break;
+      const btns=[], lines=[], vc=s.voice;
+      if(vc && voice.on){ const quiet=voice.silenced.has(vc.vid);
+        btns.push({label:quiet?'Unmute for me':'Mute for me', fn:()=>{ silence(vc.vid,!quiet); render(); }}); }
+      if(vc && v.mySeat>=0){
+        const left=vc.guard-(performance.now()-v.recvAt);
+        if(vc.muted) lines.push(`${esc(s.name)}’s mic is muted.`);
+        else if(left>0) lines.push(`${esc(s.name)} unmuted after being muted, so they can’t be muted for everyone again for ${mmss(left)}.`);
+        else btns.push({label:'Mute for everyone', fn:()=>send({t:'vmute',seat:i})});
+      }
+      if(v.isHost){
+        lines.push(s.bot?'This seat is a bot.': v.tour?.started ? 'Remove this player? They forfeit the tournament.' : 'Remove this player from the table? Their chips are cashed out in the ledger.');
+        btns.push({label:s.bot?'Remove bot':'Remove player',cls:'danger',fn:()=>send({t:'kick',seat:i})});
+      }
+      if(btns.length || lines.length) sheet(s.name, lines.map(t=>`<p>${t}</p>`).join(''), btns);
       break; }
+    case 'mic': micTap(); break;
     case 'fold': doAction('fold'); break;
     case 'check': doAction('check'); break;
     case 'call': doAction('call'); break;
@@ -1230,6 +1285,7 @@ app.addEventListener('click', e=>{
       const btns=[{label:'Invite friends',cls:'primary',fn:shareInvite},{label:'Show QR code',fn:qrSheet},{label:'Hand history',fn:historySheet}];
       btns.push(v?.tour ? {label:'Standings',fn:standingsSheet} : {label:'Ledger',fn:ledgerSheet});
       btns.push({label:'Settings',fn:settingsSheet});
+      if(voice.on) btns.push({label:'Leave voice chat',fn:()=>{ leaveVoice(); sendVoice(); render(); }});
       if(v && v.mySeat>=0 && !v.tour){ const out=v.seats[v.mySeat].sittingOut; btns.push({label:out?'I’m back':'Sit out next hand',fn:()=>send({t:'sitout',on:!out})}); }
       if(v && v.mySeat>=0) btns.push({label:v.tour?.started?'Leave tournament':'Stand up',fn:()=>send({t:'stand'})});
       if(isHost) btns.push({label:'Close table for everyone',cls:'danger',fn:endTable});
@@ -1298,7 +1354,7 @@ async function resumeHost(code){
   // fill in fields added in newer versions
   S.mode ||= 'cash'; S.dead ||= 0; S.burned ||= []; S.log ||= []; S.ledger ||= {};
   for(const s of S.seats) if(s){ s.noReraise ??= false; s.startStack ??= s.stack; }
-  for(const s of S.seats) if(s&&!s.bot){ s.connected = s.token===me.token; if(s.token===me.token) s.pid='local'; }
+  for(const s of S.seats) if(s&&!s.bot){ s.connected = s.token===me.token; s.voice=null; if(s.token===me.token) s.pid='local'; }
   // the blind clock stops while a tournament is closed
   if(S.tour && S.tour.started && !S.tour.finished && S.savedAt) S.tour.levelEnds += Math.max(0, Date.now()-S.savedAt);
   S.rootPub ||= S.hostKey?.pub; S.rootFp ||= S.hostKey?.fp; S.chain ||= []; S.epoch ||= 0;
