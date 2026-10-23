@@ -30,6 +30,18 @@ eq(cmpH('Ks Kd 8c 8h Ad 3c 2h', 'Kh Kc 8d 8s As 4d 2c'), 0, 'split: same best fi
 eq(cmpH('2h 7h 9h Jh Ah 3c 4d', '2h 7h 9h Jh Kh 3c 4d'), 1, 'flush high card');
 eq(cmpH('Ts Td Tc 4h 4d 9c 2s', '9s 9d 9h Ah Ad 3c 2s'), 1, 'boat by trips');
 
+// ---------- best five + descriptions ----------
+for(let t = 0; t < 3000; t++){
+  const seven = E.newDeck().slice(0, 7), b = E.bestFive(seven);
+  ok(b.five.length === 5 && b.five.every(c => seven.includes(c)), 'best five are 5 of the 7 cards');
+  ok(E.cmp(E.eval5(b.five), b.score) === 0, 'best five make the reported score');
+  ok(E.cmp(b.score, E.bestOf(seven)) === 0, 'bestFive agrees with bestOf');
+  ok(typeof E.describe(b.score) === 'string' && E.describe(b.score).startsWith(E.handName(b.score).replace('Pair','Pair').split(' ')[0]) || b.score[0] === 1, 'description starts with hand name');
+}
+eq(E.describe(E.bestOf('Ks Kh Kd 2c 9d 3c 4h'.split(' '))), 'Three of a Kind · Kings', 'describe trips');
+eq(E.describe(E.bestOf('Ah 2c 3d 4s 5h 9c Kd'.split(' '))), 'Straight · Five high', 'describe wheel');
+eq(E.describe(E.bestOf('Ks Kh Kd 2c 2d 3c 4h'.split(' '))), 'Full House · Kings full of 2s', 'describe boat');
+
 // ---------- deck ----------
 for(let t = 0; t < 200; t++){ const d = E.newDeck(); ok(d.length === 52 && new Set(d).size === 52, 'deck has 52 unique cards'); }
 

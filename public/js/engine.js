@@ -27,15 +27,35 @@ export function eval5(cs){
   return [0,...r];
 }
 export function cmp(a,b){ for(let i=0;i<Math.max(a.length,b.length);i++){ const d=(a[i]||0)-(b[i]||0); if(d) return d; } return 0; }
-export function bestOf(cards){
+// Best hand from any number of cards: { score, five } where five are the cards that make it.
+export function bestFive(cards){
   if(cards.length<5){ const g=groupsOf(cards.map(rv));
-    const c=g[0][0]===4?7:g[0][0]===3?3:g[0][0]===2?(g[1]&&g[1][0]===2?2:1):0; return [c,...g.map(x=>x[1])]; }
-  let best=null; const n=cards.length;
+    const c=g[0][0]===4?7:g[0][0]===3?3:g[0][0]===2?(g[1]&&g[1][0]===2?2:1):0; return { score:[c,...g.map(x=>x[1])], five:[...cards] }; }
+  let best=null, five=null; const n=cards.length;
   for(let m=0;m<(1<<n);m++){ let pc=0; for(let k=0;k<n;k++) if(m>>k&1) pc++; if(pc!==5) continue;
-    const sc=eval5(cards.filter((_,k)=>m>>k&1)); if(!best||cmp(sc,best)>0) best=sc; }
-  return best;
+    const pick=cards.filter((_,k)=>m>>k&1), sc=eval5(pick); if(!best||cmp(sc,best)>0){ best=sc; five=pick; } }
+  return { score:best, five };
 }
+export const bestOf = cards => bestFive(cards).score;
 export const handName = sc => sc[0]===8&&sc[1]===14 ? 'Royal Flush' : HAND_NAMES[sc[0]];
+
+// Human description of a score: "Three of a Kind · Kings", "Two Pair · Aces & 8s", "Flush · Ace high".
+const ONE=['','','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Jack','Queen','King','Ace'];
+const MANY=['','','2s','3s','4s','5s','6s','7s','8s','9s','10s','Jacks','Queens','Kings','Aces'];
+export function describe(sc){
+  const [c,a,b]=sc;
+  switch(c){
+    case 8: return a===14 ? 'Royal Flush' : `Straight Flush · ${ONE[a]} high`;
+    case 7: return `Four of a Kind · ${MANY[a]}`;
+    case 6: return `Full House · ${MANY[a]} full of ${MANY[b]}`;
+    case 5: return `Flush · ${ONE[a]} high`;
+    case 4: return `Straight · ${ONE[a]} high`;
+    case 3: return `Three of a Kind · ${MANY[a]}`;
+    case 2: return `Two Pair · ${MANY[a]} & ${MANY[b]}`;
+    case 1: return `Pair of ${MANY[a]}`;
+    default: return `High Card · ${ONE[a]}`;
+  }
+}
 
 // ------------------------------ state ------------------------------
 // S.dead holds chips from players who left mid-hand; it stays in the pot until showdown.
@@ -57,7 +77,7 @@ function put(s,x){ x=Math.max(0,Math.min(x,s.stack)); s.stack-=x; s.bet+=x; s.to
 // ------------------------------ hand flow ------------------------------
 export function startHand(S){
   S.results=null; S.board=[]; S.burned=[]; S.runout=false; S.dead=0;
-  for(const s of S.seats) if(s){ Object.assign(s,{bet:0,total:0,folded:false,allIn:false,cards:[],acted:false,noReraise:false,last:''});
+  for(const s of S.seats) if(s){ Object.assign(s,{bet:0,total:0,folded:false,allIn:false,cards:[],acted:false,noReraise:false,last:'',show:false});
     s.inHand = s.stack>0 && (s.connected||s.bot) && !s.leaving && !s.sittingOut; s.startStack=s.stack; }
   const n=S.seats.filter(s=>s&&s.inHand).length;
   if(n<2){ for(const s of S.seats) if(s) s.inHand=false; S.street='idle'; S.toAct=-1; return false; }
@@ -99,14 +119,14 @@ function finishFold(S){
   S.seats[w].stack+=amt;
   for(const s of S.seats) if(s){ s.bet=0; }
   S.street='showdown'; S.toAct=-1; S.runout=false;
-  S.results={ won:{[w]:amt}, reveal:{}, hands:{}, pots:[{amt,elig:[w],winners:[w]}], summary:`${S.seats[w].name} wins ${fmt(amt)}` };
+  S.results={ won:{[w]:amt}, reveal:{}, hands:{}, desc:{}, best:{}, uncontested:true, pots:[{amt,elig:[w],winners:[w]}], summary:`${S.seats[w].name} wins ${fmt(amt)}` };
   logHand(S);
 }
 
 function showdown(S){
   S.street='showdown'; S.toAct=-1; S.runout=false;
   const C=S.seats.map((s,i)=>s&&s.total>0?{i,t:s.total,live:live(s)}:null).filter(Boolean);
-  const scores={}; S.seats.forEach((s,i)=>{ if(s&&live(s)) scores[i]=bestOf([...s.cards,...S.board]); });
+  const scores={}, fives={}; S.seats.forEach((s,i)=>{ if(s&&live(s)){ const b=bestFive([...s.cards,...S.board]); scores[i]=b.score; fives[i]=b.five; } });
   const levels=[...new Set(C.map(c=>c.t))].sort((a,b)=>a-b);
   const pots=[]; let prev=0;
   for(const L of levels){
@@ -132,11 +152,11 @@ function showdown(S){
     for(const i of W){ const x=share+(rem>0?1:0); if(rem>0) rem--; S.seats[i].stack+=x; won[i]=(won[i]||0)+x; }
     p.winners=W;
   }
-  const reveal={}, hands={};
-  for(const i in scores){ reveal[i]=S.seats[i].cards; hands[i]=handName(scores[i]); }
+  const reveal={}, hands={}, desc={};
+  for(const i in scores){ reveal[i]=S.seats[i].cards; hands[i]=handName(scores[i]); desc[i]=describe(scores[i]); }
   const ws=Object.keys(won).map(Number);
-  const summary = ws.map(i=>`${S.seats[i].name} wins ${fmt(won[i])}`).join(' · ') + (ws.length?` with ${hands[ws[0]]}`:'');
-  S.results={won,reveal,hands,pots,summary};
+  const summary = ws.map(i=>`${S.seats[i].name} wins ${fmt(won[i])}`).join(' · ') + (ws.length?` with ${desc[pots[0].winners[0]]}`:'');
+  S.results={won,reveal,hands,desc,best:fives,pots,summary};
   logHand(S);
 }
 

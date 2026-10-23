@@ -82,3 +82,13 @@
 .lanreply{display:flex;flex-direction:column;align-items:center;gap:10px}
 .lanreply .qr-box{width:min(300px,78vw);margin:0 0 8px}
 .lanreply b{font-weight:500;color:#e8e8ea;font-size:18px}
+
+/* ---------- showdown: why the pot was won ---------- */
+.why{min-height:1.35em;text-align:center;font-size:14px;color:#c7c7cc;margin-top:4px;flex:none;animation:fade .3s ease both;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#app.wide .why{font-size:18px;margin-top:10px}
+.card.dimc{filter:brightness(.32) grayscale(.6)}
+.rv{display:flex;flex-direction:column;align-items:center;gap:3px}
+.rvc{display:flex;align-items:center;gap:3px}
+.shand{font-size:11px;color:var(--mut);white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.shand.w{color:var(--mint)}

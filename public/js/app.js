@@ -8,7 +8,7 @@
 
 import { TURN_MS, APP_ID, TRYSTERO_URL, RELAY_URLS, TURN_CREDENTIALS_URL, TURN_SERVERS, JOIN_HINT_MS } from './config.js';
 import { MAXS, rnd, bestOf, handName, mkState, mkSeat, potTotal, startHand, endRound, applyAction, botMove, fmt,
-  isActive, removeSeat, blindsFor, tourLevelUp, tourSettle } from './engine.js';
+  isActive, removeSeat, blindsFor, tourLevelUp, tourSettle, describe } from './engine.js';
 import { morph } from './morph.js';
 import { app, short, esc, fmtCode, STAKES, AVATARS, EMOTES, BOTS, ICON, cardHTML, toast, LS, randomName, raiseStops } from './ui-helpers.js';
 import { play, buzz, fx as fxPrefs } from './sound.js';
@@ -159,6 +159,10 @@ function handle(d, pid){
     case 'rebuy': { const s=S.seats[i]; if(i<0||tourOn()||s.stack>0||s.inHand&&isActive(S)) return;
       s.stack=S.buyIn; S.ledger[s.token].buy+=S.buyIn; S.seq++; break; }
     case 'stand': if(i<0) return; dropSeat(i); S.seq++; break;
+    case 'show': {   // reveal your cards to everyone when the hand ends (folded players, uncalled winners)
+      const s=S.seats[i]; if(i<0 || s.bot || !s.cards.length || s.show || S.results?.reveal?.[i]) return;
+      s.show=true; if(S.results) logShown(i);
+      S.seq++; break; }
     case 'addbot': { if(!host) return; const k=d.seat|0; if(k<0||k>=MAXS||S.seats[k]||tourOn()&&S.tour.started) return;
       const used=new Set(S.seats.filter(Boolean).map(s=>s.name)); const b=BOTS.find(b=>!used.has(b[0]))||['bot'+k,'🤖'];
       S.seats[k]=mkSeat({token:'bot-'+k+'-'+Date.now(),pid:null,name:b[0],av:b[1],stack:tourOn()?S.tour.stack:S.buyIn,bot:true}); S.seq++; break; }
@@ -179,7 +183,14 @@ function handle(d, pid){
   hostSync();
 }
 
+// add a voluntarily shown hand to the hand history entry it belongs to
+function logShown(i){
+  const s=S.seats[i], L=S.log?.[0];
+  if(!s || !L || L.n!==S.handNo || L.shown.some(x=>x.name===s.name)) return;
+  L.shown.push({ name:s.name, cards:[...s.cards], hand:handName(bestOf([...s.cards,...S.board]))+' (shown)' });
+}
 function nextHand(){
+  S.seats.forEach((s,i)=>{ if(s&&s.show) logShown(i); });
   for(let i=0;i<MAXS;i++){ const s=S.seats[i]; if(!s) continue;
     if(s.leaving){ dropSeat(i); continue; }
     if(!tourOn() && s.bot && s.stack===0) s.stack=S.buyIn; }
@@ -217,7 +228,8 @@ function viewFor(pid){
   const seats=S.seats.map((s,i)=>s&&{
     name:s.name, av:s.av, stack:s.stack, bet:s.bet, folded:s.folded, allIn:s.allIn, inHand:s.inHand, bot:s.bot,
     connected:s.connected||s.bot, leaving:s.leaving, last:s.last, noReraise:s.noReraise,
-    cards: i===mySeat ? s.cards : (R&&R.reveal[i]) ? R.reveal[i] : (s.inHand&&!s.folded&&s.cards.length ? ['back','back'] : null),
+    cards: i===mySeat ? s.cards : (R&&R.reveal[i]) ? R.reveal[i] : (R&&s.show&&s.cards.length) ? s.cards : (s.inHand&&!s.folded&&s.cards.length ? ['back','back'] : null),
+    show:!!s.show, shownHand: R&&s.show&&!R.reveal[i]&&s.cards.length ? handName(bestOf([...s.cards,...S.board])) : '',
   });
   const ledger=Object.entries(S.ledger).map(([tok,L])=>{ const s=S.seats.find(x=>x&&x.token===tok);
     return {name:L.name, buy:L.buy, net:L.out+(s?s.stack:0)-L.buy, seated:!!s}; });
@@ -250,7 +262,7 @@ function setView(v){
   const myTurn = v.mySeat>=0 && v.toAct===v.mySeat && isActive(v);
   if(turnKey!==ui.lastTurnKey){ ui.lastTurnKey=turnKey; ui.raiseOpen=false; }
   const rk = v.results ? v.handNo+':'+v.results.summary : '';
-  if(rk && rk!==ui.lastResultsKey){ ui.lastResultsKey=rk; toast(v.results.summary, 4200); }
+  if(rk && rk!==ui.lastResultsKey) ui.lastResultsKey=rk;   // the result is shown on the table (see .why)
   if(v.note && v.note.n!==ui.noteN){ const fresh=prev&&ui.noteN; ui.noteN=v.note.n; if(fresh){ toast(v.note.text,3600); if(v.note.sound) play(v.note.sound); } }
   if(v.tour?.finished && !ui.finishedShown){ ui.finishedShown=true; setTimeout(standingsSheet, 900); }
   if(v.tour && !v.tour.finished) ui.finishedShown=false;
@@ -414,7 +426,17 @@ function renderTable(prev){
 
   // --- board
   const newCards = prev && prev.handNo===v.handNo ? prev.board.length : 0;
-  const board=[0,1,2,3,4].map(k=>v.board[k] ? cardHTML(v.board[k], k>=newCards?'deal':'', (k-newCards)*90) : cardHTML('back')).join('');
+  // after a showdown, the five cards that won stay bright and everything else dims
+  const mainW = R ? (R.pots?.[0]?.winners || Object.keys(R.won).map(Number)) : [];
+  const lit = R && R.best && R.best[mainW[0]] ? new Set(R.best[mainW[0]]) : null;
+  const litCls = c => lit && !lit.has(c) ? 'dimc' : '';
+  const board=[0,1,2,3,4].map(k=>v.board[k] ? cardHTML(v.board[k], `${k>=newCards?'deal':''} ${litCls(v.board[k])}`, (k-newCards)*90) : cardHTML('back')).join('');
+  let why='';
+  if(R){
+    const nm=i=>esc(v.seats[i]?.name||'Player');
+    why = R.uncontested ? `${nm(mainW[0])} wins · everyone folded`
+        : `${mainW.map(nm).join(' & ')} ${mainW.length>1?'split the pot with':'wins with'} ${esc(R.desc?.[mainW[0]]||R.hands?.[mainW[0]]||'')}`;
+  }
 
   // --- controls
   const myTurn = seated && v.toAct===v.mySeat && active;
@@ -434,6 +456,8 @@ function renderTable(prev){
     ctrl = wide(T ? (T.myPlace ? `You finished #${T.myPlace} · watching` : 'Tournament running · watching') : full?'Table is full · watching':'Tap + to take a seat');
   } else if(mine.stack===0 && !(mine.inHand&&active) && !T){
     ctrl=`<div class="ctrl" style="grid-template-columns:1fr 1fr"><button class="btn on" data-act="rebuy">Rebuy ${short(v.buyIn)}</button><button class="btn on" data-act="stand">Stand up</button></div>`;
+  } else if(R && mine.inHand && v.street==='showdown' && !R.reveal[v.mySeat] && mine.cards?.length){
+    ctrl = mine.show ? wide('Cards shown') : `<div class="ctrl"><button class="btn on wide" data-act="show">Show your cards</button></div>`;
   } else if(!mine.inHand || !active){
     ctrl = wide(active?'Wait for the next hand': v.street==='showdown'?'Next hand…': seatedN>1? 'Starting…':'Waiting for players');
   } else {
@@ -449,7 +473,9 @@ function renderTable(prev){
       cols.push('1.3fr'); html+=`<button class="btn ${on}" ${dis} data-act="raiseMin" data-v="${minTo}">${rLbl}</button>`;
       if(minTo<maxTo){ cols.push('.55fr'); html+=`<button class="btn ${on}" ${dis} data-act="raiseOpen" aria-label="Custom raise">${ICON.up}</button>`; }
     }
-    if(mine.allIn || mine.folded){ ctrl=wide(mine.folded?'Folded':'All in'); }
+    if(mine.folded) ctrl=`<div class="ctrl" style="grid-template-columns:1fr 1fr"><button class="btn" disabled>Folded</button>${mine.show
+        ? '<button class="btn" disabled>Showing at the end</button>' : '<button class="btn on" data-act="show">Show cards at the end</button>'}</div>`;
+    else if(mine.allIn){ ctrl=wide('All in'); }
     else ctrl=`<div class="ctrl" style="grid-template-columns:${cols.join(' ')}">${html}</div>`;
 
     if(myTurn && ui.raiseOpen && canRaise && minTo<maxTo){
@@ -479,10 +505,11 @@ function renderTable(prev){
   const holeNew = holeCards && (!prev || prev.handNo!==v.handNo);
   const hidden = holeCards && ui.hide;
   const hole = hidden ? cardHTML('back','hid')+cardHTML('back','hid')
+             : holeCards && lit ? holeCards.map(c=>cardHTML(c, litCls(c))).join('')
              : holeCards ? holeCards.map((c,k)=>cardHTML(c, holeNew?'deal':'', k*120)).join('')
              : (!seated && a && a.cards) ? a.cards.map(c=>cardHTML(c)).join('') : cardHTML(null)+cardHTML(null);
   let hn='';
-  if(seated && holeCards){ hn = hidden ? 'Hidden · tap to peek' : R&&R.hands[v.mySeat] ? R.hands[v.mySeat] : handName(bestOf([...holeCards,...v.board])); }
+  if(seated && holeCards){ hn = hidden ? 'Hidden · tap to peek' : R&&R.hands[v.mySeat] ? R.hands[v.mySeat] : mine.shownHand || handName(bestOf([...holeCards,...v.board])); }
   else if(!seated && a && R && R.hands[anchor]) hn=R.hands[anchor];
   const handTurn = v.toAct===anchor && active;
   let box;
@@ -501,7 +528,7 @@ function renderTable(prev){
 
   const banner = hostLost ? `<div class="banner">Lost connection to host… waiting</div>` : '';
   const emo = ui.emoteOpen ? `<div class="shade" data-act="emoteClose"></div><div class="emobar">${EMOTES.map(e=>`<button data-act="em" data-v="${e}">${e}</button>`).join('')}</div>` : '';
-  const potHTML = `<div class="pot">${v.pot>0||active?fmt(v.pot):''}</div>`;
+  const potHTML = `<div class="pot">${v.pot>0||active?fmt(v.pot):''}</div><div class="why">${why}</div>`;
 
   const fx=captureFx();
   // Desktop uses the same open layout as phones (a row of players, the board, your controls), just wider.
@@ -553,9 +580,12 @@ function seatHTML(v,i,seated,maxStack){
   if(!s) return `<div class="seat empty"><div class="pie-wrap"></div>
     <button class="plus" data-k="plus" data-act="sit" data-i="${i}" ${canSit?'':'disabled'} aria-label="Sit here"></button>
     <div class="nm">&nbsp;</div><div class="st">&nbsp;</div><div class="under"></div></div>`;
-  const dim = (active&&(!s.inHand||s.folded)) || (!s.connected) || (R&&s.inHand&&s.folded) ;
+  const dim = ((active&&(!s.inHand||s.folded)) || (!s.connected) || (R&&s.inHand&&s.folded)) && !(R&&s.show);
   let under='';
-  if(R && R.reveal[i]) under = R.reveal[i].map(c=>cardHTML(c,'mini')).join('') + (R.won[i]?`<span class="chip win" data-k="w" style="margin-left:2px">+${short(R.won[i])}</span>`:'');
+  const shown = R && (R.reveal[i] || (s.show && s.cards && s.cards[0]!=='back' ? s.cards : null));
+  const lit = R && R.best && R.best[(R.pots?.[0]?.winners||[])[0]] ? new Set(R.best[R.pots[0].winners[0]]) : null;
+  if(shown) under = `<div class="rv"><div class="rvc">${shown.map(c=>cardHTML(c,`mini ${lit&&!lit.has(c)?'dimc':''}`)).join('')}${R.won[i]?`<span class="chip win" data-k="w" style="margin-left:2px">+${short(R.won[i])}</span>`:''}</div>
+      <div class="shand ${R.won[i]?'w':''}">${esc(R.hands[i] || (s.shownHand ? s.shownHand+' · shown' : ''))}</div></div>`;
   else if(R && R.won[i]) under=`<span class="chip win" data-k="w">+${fmt(R.won[i])}</span>`;
   else if(s.bet>0) under=`<span class="chip" data-k="b${s.bet}">${fmt(s.bet)}</span>`;
   else if(s.allIn && active) under=`<span class="tag">ALL IN</span>`;
@@ -819,6 +849,7 @@ app.addEventListener('click', e=>{
     case 'emoteClose': ui.emoteOpen=false; render(); break;
     case 'em': ui.emoteOpen=false; if(!isHost) buzz(8); send({t:'emote',e:b.dataset.v}); render(); break;   // guests feel it now; the sound comes with the host's echo
     case 'rebuy': play('chips'); send({t:'rebuy'}); break;
+    case 'show': play('flip'); send({t:'show'}); break;
     case 'stand': send({t:'stand'}); break;
     case 'tstart': send({t:'tstart'}); break;
     case 'treset': send({t:'treset'}); break;

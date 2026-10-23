@@ -62,6 +62,8 @@ Every push to `main` runs `.github/workflows/deploy.yml`, which syntax-checks th
 - **Friends:** open the link, pick a name and avatar, tap **Join table**, then tap any **+** to sit down.
 - **Bots:** as host, tap an empty **+** to add a bot. Handy for testing alone or filling seats. Tap a bot to remove it.
 - **Fold:** tap **Fold**, or swipe your cards up.
+- **Showdown:** the table says who won and with what ("flint wins with Two Pair · Queens & 5s"); the five winning cards stay bright and every revealed hand is labelled.
+- **Show your cards:** after folding (or winning uncalled), tap **Show cards** and everyone sees them when the hand ends.
 - **Hide your cards:** tap them (or press `H`). Tap again to peek.
 - **Tournament:** pick Tournament in the lobby, choose a speed (blinds up every 5, 10 or 15 minutes), seat players, then tap **Start tournament**. No rebuys or late entries; last player standing wins.
 - **Invite in person:** `•••` > **Show QR code**, or the QR button in the lobby.
