@@ -48,8 +48,8 @@
 
 /* ---------- emotes ---------- */
 .emobar{position:absolute;left:16px;right:16px;bottom:max(env(safe-area-inset-bottom),14px);height:clamp(70px,16cqw,84px);border-radius:28px;
-  background:#1f1f23;display:flex;align-items:center;justify-content:space-around;z-index:20;animation:up .2s ease-out;box-shadow:0 -20px 40px #000c}
-.emobar button{font-size:clamp(30px,8.6cqw,42px);line-height:1;transition:transform .1s}
+  background:#1f1f23;display:flex;align-items:center;justify-content:space-evenly;padding:0 8px;z-index:20;animation:up .2s ease-out;box-shadow:0 -20px 40px #000c}
+.emobar button{font-size:clamp(28px,7.6cqw,40px);line-height:1;transition:transform .1s}
 .emobar button:active{transform:scale(1.25)}
 .shade{position:absolute;inset:0;background:#000b;z-index:19}
 @keyframes up{from{transform:translateY(30px);opacity:0}to{transform:none;opacity:1}}

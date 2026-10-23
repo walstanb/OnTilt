@@ -70,11 +70,13 @@ const EMOTE_SOUNDS = {
   '😫': () => tone(330, { dur: .5, type: 'triangle', vol: .07, slide: -150, attack: .06 }),
   // angry: a low growl
   '😠': () => { tone(110, { dur: .28, type: 'sawtooth', vol: .04, slide: -25, attack: .02 }); noise({ dur: .25, vol: .05, freq: 350, type: 'lowpass' }); },
+  // middle finger: a rude raspberry, a buzzy low flutter
+  '🖕': () => { [0, .045, .09, .135, .18, .225].forEach((at, i) => tone(i % 2 ? 82 : 96, { at, dur: .06, type: 'sawtooth', vol: .045, attack: .004 })); noise({ dur: .28, vol: .04, freq: 500, type: 'lowpass' }); },
   // party: a popper, then a quick rising fanfare
   '🥳': () => { noise({ dur: .07, vol: .08, freq: 5000, q: .6 }); [523, 659, 784, 1047].forEach((f, i) => tone(f, { at: .05 + i*.07, dur: .14, vol: .06 })); },
   default: () => tone(700, { dur: .09, vol: .07, slide: 200 }),
 };
-const EMOTE_BUZZ = { '👋': [8, 60, 8], '👏': [6, 60, 6, 80, 6, 60, 6], '😆': [8, 50, 8, 50, 8], '😫': 30, '😠': [40, 30, 40], '🥳': [10, 30, 10, 30, 30] };
+const EMOTE_BUZZ = { '👋': [8, 60, 8], '👏': [6, 60, 6, 80, 6, 60, 6], '😆': [8, 50, 8, 50, 8], '😫': 30, '😠': [40, 30, 40], '🖕': [12, 20, 12, 20, 12, 20, 12], '🥳': [10, 30, 10, 30, 30] };
 const BUZZ = { turn: [20, 50, 20], win: 40, allin: 25, fold: 8, check: 6, chip: 6, chips: 8, emote: 8, bust: 30, level: 15 };
 
 // `arg` picks a variant: the emoji for 'emote'.
