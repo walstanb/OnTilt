@@ -837,6 +837,27 @@ function standingsSheet(){
   const w=T.finished && T.places.find(p=>p.place===1);
   sheet(w?`🏆 ${w.name} wins!`:'Standings', html, view.isHost&&T.finished?[{label:'Run it back',cls:'primary',fn:()=>send({t:'treset'})}]:[]);
 }
+// Best to worst, each with an example. Dimmed cards are the ones that don't count.
+const RANKINGS=[
+  ['Royal Flush','A K Q J 10, all one suit','As Ks Qs Js Ts',5],
+  ['Straight Flush','Five in a row, all one suit','9h 8h 7h 6h 5h',5],
+  ['Four of a Kind','Four cards of one rank','Qc Qd Qh Qs 7d',4],
+  ['Full House','Three of a kind plus a pair','Kh Kd Ks 4c 4h',5],
+  ['Flush','Any five of one suit','Ad Jd 8d 6d 3d',5],
+  ['Straight','Five in a row, any suits','Tc 9d 8h 7s 6c',5],
+  ['Three of a Kind','Three cards of one rank','7c 7d 7h Ks 2d',3],
+  ['Two Pair','Two different pairs','Jh Jc 5d 5s As',4],
+  ['Pair','Two cards of one rank','Ts Th Ad 8c 4h',2],
+  ['High Card','None of the above: highest card plays','Ah Jd 9c 6s 3h',1],
+];
+function rankingsSheet(){
+  const html=`<div class="ranks">${RANKINGS.map(([name,what,cards,n],k)=>`<div class="rk">
+      <span class="rn">${k+1}</span>
+      <div class="rt"><b>${name}</b><span>${what}</span></div>
+      <div class="rc">${cards.split(' ').map((c,j)=>cardHTML(c, `mini ${j>=n?'dimc':''}`)).join('')}</div></div>`).join('')}</div>
+    <p class="rnote">Ties break on the highest cards. Suits never rank; an ace can be high or low in a straight.</p>`;
+  sheet('Hand rankings', html, [], 'tall ranks-sheet');
+}
 function historySheet(){
   const log=view?.log||[];
   const html = log.length ? `<div class="hist">${log.map(h=>`<div class="hrow"><div class="hh"><b>Hand ${h.n}</b><span>${esc(h.summary)}</span></div>
@@ -900,7 +921,7 @@ app.addEventListener('click', e=>{
     case 'standings': standingsSheet(); break;
     case 'retry': location.reload(); break;
     case 'menu': {
-      const btns=[{label:'Invite friends',cls:'primary',fn:shareInvite},{label:'Show QR code',fn:qrSheet},{label:'Hand history',fn:historySheet}];
+      const btns=[{label:'Invite friends',cls:'primary',fn:shareInvite},{label:'Show QR code',fn:qrSheet},{label:'Hand history',fn:historySheet},{label:'Hand rankings',fn:rankingsSheet}];
       btns.push(v?.tour ? {label:'Standings',fn:standingsSheet} : {label:'Ledger',fn:ledgerSheet});
       btns.push({label:'Sound & vibration',fn:settingsSheet});
       if(v && v.mySeat>=0) btns.push({label:v.tour?.started?'Leave tournament':'Stand up',fn:()=>send({t:'stand'})});

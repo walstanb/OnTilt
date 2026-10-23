@@ -110,3 +110,14 @@
 .odds li{display:flex;justify-content:space-between;font-size:12px;color:#c7c7cc}
 .odds li i{font-style:normal;color:#8e8e93;font-variant-numeric:tabular-nums}
 .odds .spin{width:22px;height:22px;margin:0}
+
+/* ---------- hand rankings sheet ---------- */
+.ranks{display:flex;flex-direction:column;gap:6px}
+.rk{display:grid;grid-template-columns:18px 1fr auto;align-items:center;gap:10px;padding:8px 10px;border-radius:14px;background:#1c1c1f}
+.rn{font-size:12px;color:#55555b;font-variant-numeric:tabular-nums;text-align:center}
+.rt{display:flex;flex-direction:column;min-width:0}
+.rt b{font-weight:500;font-size:14px;color:#e8e8ea}
+.rt span{font-size:12px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rc{display:flex;gap:2px}
+.rc .mini{width:22px}
+.rnote{font-size:12px;color:#6d6d72;margin:12px 2px 0}
