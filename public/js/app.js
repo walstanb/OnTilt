@@ -562,7 +562,7 @@ function paint(html){
 const brand = sub => `<div class="brand"><span class="wm">${LOGO}<span>On<b>Tilt</b></span></span>${sub?`<small>${sub}</small>`:''}</div>`;
 // Logo mark: a spade card knocked off-square in front of a straight one. Same art as assets/favicon.svg,
 // except the straight card is masked where the tilted one covers it, so no black edge shows on grey panels.
-const LOGO = `<svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><mask id="lm"><rect width="32" height="32" fill="#fff"/><rect x="11" y="5" width="15" height="22" rx="3" transform="rotate(16 18.5 16)"/></mask><rect x="7" y="6" width="13" height="20" rx="2.6" fill="none" stroke="#5d5d63" stroke-width="2" mask="url(#lm)"/><g transform="rotate(16 18.5 16)"><rect x="12" y="6" width="13" height="20" rx="2.6" fill="#cde8c6"/><path d="M18.5 10.6c-2.1 2.1-4 3.4-4 5.2a2.1 2.1 0 0 0 3.5 1.5l-.8 2.3h2.6l-.8-2.3a2.1 2.1 0 0 0 3.5-1.5c0-1.8-1.9-3.1-4-5.2z" fill="#000"/></g></svg>`;
+const LOGO = `<svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#eaf8e4"/><stop offset="1" stop-color="#8fd6ac"/></linearGradient></defs><rect x="4.5" y="7.5" width="13" height="19" rx="3" fill="#5c5c63" stroke="#000" stroke-width="1.6" transform="rotate(-10 11 17)"/><g transform="rotate(14 19.5 15.5)"><rect x="12.5" y="5.5" width="14" height="20" rx="3.2" fill="url(#lg)" stroke="#000" stroke-width="1.6"/><path d="M19.5 10.4c-2.3 2.3-4.3 3.7-4.3 5.7a2.3 2.3 0 0 0 3.8 1.7l-.9 2.6h2.8l-.9-2.6a2.3 2.3 0 0 0 3.8-1.7c0-2-2-3.4-4.3-5.7z" fill="#0b0b0c"/></g></svg>`;
 const mmss = ms => { const s=Math.ceil(ms/1000); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); };
 // blinds go up between hands, so once the clock runs out they rise when this hand ends
 const lvlLeft = ms => ms>0 ? mmss(ms) : 'up next hand';
@@ -676,7 +676,7 @@ function renderTable(prev){
   const mainW = R ? (R.pots?.[0]?.winners || Object.keys(R.won).map(Number)) : [];
   const lit = R && R.best && R.best[mainW[0]] ? new Set(R.best[mainW[0]]) : null;
   const litCls = c => lit && !lit.has(c) ? 'dimc' : '';
-  const board=[0,1,2,3,4].map(k=>v.board[k] ? cardHTML(v.board[k], `${k>=newCards?'deal':''} ${litCls(v.board[k])}`, (k-newCards)*90) : cardHTML(null, 'slot')).join('');   // undealt: an empty outline, not a card back
+  const board=[0,1,2,3,4].map(k=>v.board[k] ? cardHTML(v.board[k], `${k>=newCards?'deal':''} ${litCls(v.board[k])}`, (k-newCards)*90) : cardHTML('back')).join('');   // undealt: face down, in the chosen back design
   let why='';
   if(R){
     const nm=i=>esc(v.seats[i]?.name||'Player');
@@ -766,7 +766,7 @@ function renderTable(prev){
   const hole = hidden ? cardHTML('back','hid')+cardHTML('back','hid')
              : holeCards && lit ? holeCards.map(c=>cardHTML(c, litCls(c))).join('')
              : holeCards ? holeCards.map((c,k)=>cardHTML(c, holeNew?'deal':'', k*120)).join('')
-             : (!seated && a && a.cards) ? a.cards.map(c=>cardHTML(c)).join('') : cardHTML(null)+cardHTML(null);
+             : (!seated && a && a.cards) ? a.cards.map(c=>cardHTML(c)).join('') : cardHTML(null,'slot')+cardHTML(null,'slot');   // no cards yet: outlines, like the board
   let hn='';
   if(seated && holeCards){ hn = hidden ? 'Hidden' : R&&R.hands[v.mySeat] ? R.hands[v.mySeat] : mine.shownHand || handName(bestOf([...holeCards,...v.board])); }
   else if(!seated && a && R && R.hands[anchor]) hn=R.hands[anchor];
@@ -896,7 +896,7 @@ function seatHTML(v,i,seated,maxStack){
   const turn = v.toAct===i && active;
   return `<div class="seat ${dim?'dim':''} ${turn?'turn':''}">
     <div class="pie-wrap">${turn?'<div class="pie" data-timer></div>':''}</div>
-    <button class="av" data-k="av${esc(s.name)}" data-act="seatTap" data-i="${i}" data-seat-av="${i}" aria-label="${esc(s.name)}, ${fmt(s.stack)} chips${s.bot?', bot':''}${!s.connected?', disconnected':''}">${avatarSVG(s.av)}${v.dealer===i&&v.handNo?'<b class="d">D</b>':''}</button>
+    <button class="av" data-k="av${esc(s.name)}" data-act="seatTap" data-i="${i}" data-seat-av="${i}" aria-label="${esc(s.name)}, ${fmt(s.stack)} chips${s.bot?', bot':''}${!s.connected?', disconnected':''}">${avatarSVG(s.av)}${!R && s.inHand && !s.folded && s.cards?.[0]==='back' ? `<span class="fan" aria-hidden="true">${cardHTML('back')}${cardHTML('back')}</span>` : ''}${v.dealer===i&&v.handNo?'<b class="d">D</b>':''}</button>
     <div class="nm">${esc(s.name)}</div><div class="st">${amt(s.stack)}</div>
     <div class="under">${under}</div></div>`;
 }
@@ -1150,7 +1150,7 @@ function historySheet(){
 }
 // Card back designs: a per-device look (card faces always stay classic). Each design is a CSS class
 // that sets the back's variables (see "card backs" in css/features.css); previews carry their own class.
-const DECKS=[['red','Classic Red'],['navy','Navy'],['mint','Mint'],['gold','Gold'],['paper','Paper'],['stripes','Charcoal']];
+const DECKS=[['red','Classic Red'],['navy','Midnight'],['mint','Aurora'],['gold','Sunset'],['paper','Mono'],['stripes','Carbon']];
 let deck=LS.get('ot-deck','red'); if(!DECKS.some(d=>d[0]===deck)) deck='red';
 const applyDeck=()=>{ for(const [d] of DECKS) document.documentElement.classList.toggle('dk-'+d, d===deck); };
 applyDeck();

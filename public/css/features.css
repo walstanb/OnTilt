@@ -1,11 +1,14 @@
 /* ---------- brand ---------- */
 .brand{display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;min-width:0}
-.wm{display:inline-flex;align-items:center;gap:5px;font-size:18px;font-weight:500;letter-spacing:-.01em;color:#e8e8ea}
-.wm b{font-weight:600;color:var(--mint)}
-.wm .mark{width:20px;height:20px;flex:none}
+.wm{display:inline-flex;align-items:center;gap:6px;font-size:18px;font-weight:800;letter-spacing:-.035em;color:#f4f4f5}
+/* "Tilt" leans like the card in the mark */
+.wm b{display:inline-block;font-weight:800;transform:skewX(-9deg);padding-right:.06em;
+  background:linear-gradient(120deg,#eaf8e4,#a9e0b4 60%,#7fd0a8);-webkit-background-clip:text;background-clip:text;color:transparent}
+.wm .mark{width:22px;height:22px;flex:none;transition:transform .35s var(--spring,ease)}
+.wm:hover .mark{transform:rotate(-8deg) scale(1.06)}
 .brand small{display:block;margin-top:4px;font-size:12px;color:var(--mut);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
-.panel .top .wm{font-size:22px}
-.panel .top .wm .mark{width:22px;height:22px}
+.panel .top .wm{font-size:27px;gap:8px}
+.panel .top .wm .mark{width:38px;height:38px;margin-right:-2px}
 
 /* ---------- lobby additions ---------- */
 .side{display:flex;flex-direction:column;flex:1;min-height:0}
@@ -63,10 +66,6 @@
 .hs span{margin-left:6px;font-size:13px}
 .ledger td:first-child{white-space:nowrap}
 
-/* ---------- dark card backs (board placeholders, hidden cards) to match the black table ---------- */
-.card.back{background:linear-gradient(150deg,#1c1c20,#121214);border:2px solid #2a2a2f}
-.card.back::after{background:repeating-linear-gradient(135deg,#26262b 0 2.6cqw,transparent 2.6cqw 9.5cqw)}
-.hole .card.back.hid{border-color:#3a3a40}
 
 
 /* ---------- nearby (LAN) pairing ---------- */
@@ -150,25 +149,36 @@ body.zoomed .float{font-size:calc(46px * var(--z))}
 .btn.pre.sel{color:var(--mint);border-style:solid;border-color:var(--mint);background:#0e1712}
 
 /* ---------- card backs: each design sets these variables; faces always stay classic ---------- */
-/* --cbk card colour, --cbb edge, --cbp pattern inside the frame, --cbf the thin inner frame */
-:root,.dk-red{ --cbk:linear-gradient(150deg,#b02a31,#7d1a20); --cbb:#c4424a; --cbf:#ffffffa6;
-  --cbp:repeating-linear-gradient(135deg,#ffffff26 0 2.6cqw,transparent 2.6cqw 9.5cqw); }
-.dk-navy{ --cbk:linear-gradient(150deg,#22375c,#152440); --cbb:#33507f; --cbf:#ffffff59;
-  --cbp:repeating-linear-gradient(135deg,#ffffff1f 0 2.6cqw,transparent 2.6cqw 9.5cqw); }
-.dk-mint{ --cbk:linear-gradient(150deg,#d6eecf,#b5d9ab); --cbb:#a9cf9e; --cbf:#1b2a2166;
-  --cbp:repeating-linear-gradient(135deg,#1b2a2124 0 2.6cqw,transparent 2.6cqw 9.5cqw); }
-.dk-gold{ --cbk:linear-gradient(150deg,#ecd27a,#d1ae47); --cbb:#c9a63f; --cbf:#4a3a0a59;
-  --cbp:radial-gradient(circle,#4a3a0a3d 24%,transparent 27%) 0 0/12cqw 12cqw; }
-.dk-paper{ --cbk:linear-gradient(150deg,#f4f2ec,#e2ded3); --cbb:#d2cdc0; --cbf:#00000033;
-  --cbp:repeating-linear-gradient(0deg,#00000014 0 1.2cqw,transparent 1.2cqw 9cqw),repeating-linear-gradient(90deg,#00000014 0 1.2cqw,transparent 1.2cqw 9cqw); }
-.dk-stripes{ --cbk:linear-gradient(150deg,#1c1c20,#121214); --cbb:#2a2a2f; --cbf:transparent;
-  --cbp:repeating-linear-gradient(135deg,#26262b 0 2.6cqw,transparent 2.6cqw 9.5cqw); }
+/* --cbk card fill, --cbb edge, --cbp pattern inside the frame, --cbf frame line, --cbi centre emblem colour */
+:root,.dk-red{ --cbk:linear-gradient(160deg,#e0434c,#a3131e 55%,#6e0b13); --cbb:#c12a34; --cbf:#ffffff6b; --cbi:#fff;
+  --cbp:repeating-linear-gradient(45deg,#ffffff17 0 1cqw,transparent 1cqw 7cqw),repeating-linear-gradient(-45deg,#ffffff17 0 1cqw,transparent 1cqw 7cqw); }
+.dk-navy{ --cbk:radial-gradient(130% 100% at 20% 0%,#4c5fe0,#1d2675 55%,#0b0f33); --cbb:#33409c; --cbf:#ffffff4d; --cbi:#dfe4ff;
+  --cbp:radial-gradient(circle,#ffffff2e 0 .9cqw,transparent 1.1cqw) 0 0/8cqw 8cqw; }
+.dk-mint{ --cbk:linear-gradient(150deg,#b8f5d6,#4cc3a8 50%,#2b6fa3); --cbb:#43ad9f; --cbf:#ffffff73; --cbi:#fff;
+  --cbp:radial-gradient(120% 60% at 50% 115%,#ffffff47,transparent 65%),repeating-linear-gradient(0deg,#ffffff14 0 .8cqw,transparent .8cqw 6cqw); }
+.dk-gold{ --cbk:linear-gradient(155deg,#ffd36b,#ff8a5b 50%,#d9467a); --cbb:#ef7a5f; --cbf:#ffffff73; --cbi:#fff;
+  --cbp:repeating-linear-gradient(120deg,#ffffff21 0 1cqw,transparent 1cqw 7cqw); }
+.dk-paper{ --cbk:linear-gradient(160deg,#fff,#e9e8e4); --cbb:#d4d1c9; --cbf:#1111112e; --cbi:#111;
+  --cbp:repeating-conic-gradient(#1111110d 0 25%,transparent 0 50%) 0 0/9cqw 9cqw; }
+.dk-stripes{ --cbk:linear-gradient(160deg,#26262b,#0e0e10); --cbb:#34343a; --cbf:#cde8c633; --cbi:var(--mint);
+  --cbp:repeating-linear-gradient(45deg,#ffffff0c 0 1.6cqw,transparent 1.6cqw 3.2cqw),repeating-linear-gradient(-45deg,#00000059 0 1.6cqw,transparent 1.6cqw 3.2cqw); }
 
-.card.back{background:var(--cbk);border-color:var(--cbb)}
-.card.back::after{background:var(--cbp);box-shadow:inset 0 0 0 1px var(--cbf)}
-/* undealt board slots: quiet outlines, whatever the back design */
+.card.back{background:var(--cbk);border:0;box-shadow:inset 0 0 0 1.5px var(--cbb),0 2px 10px #0007}
+/* a soft sheen over the pattern, inside a thin frame */
+.card.back::after{inset:7%;border-radius:10%/7%;background:linear-gradient(165deg,#ffffff2b,transparent 45%),var(--cbp);box-shadow:inset 0 0 0 1px var(--cbf)}
+/* centre emblem: a spade in a diamond, tinted per design */
+.card.back::before{content:'';position:absolute;inset:0;margin:auto;width:44%;aspect-ratio:1;z-index:1;background:var(--cbi);opacity:.92;
+  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 1.5 30.5 16 16 30.5 1.5 16z' fill='none' stroke='%23000' stroke-width='1.3'/%3E%3Cpath d='M16 8.2c-3.1 3.1-5.9 5-5.9 7.8a3.1 3.1 0 0 0 5.2 2.3l-1.2 3.5h3.8l-1.2-3.5a3.1 3.1 0 0 0 5.2-2.3c0-2.8-2.8-4.7-5.9-7.8z'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 1.5 30.5 16 16 30.5 1.5 16z' fill='none' stroke='%23000' stroke-width='1.3'/%3E%3Cpath d='M16 8.2c-3.1 3.1-5.9 5-5.9 7.8a3.1 3.1 0 0 0 5.2 2.3l-1.2 3.5h3.8l-1.2-3.5a3.1 3.1 0 0 0 5.2-2.3c0-2.8-2.8-4.7-5.9-7.8z'/%3E%3C/svg%3E") center/contain no-repeat}
+/* undealt board slots and your empty hand: quiet outlines, whatever the back design */
 .card.ghost.slot{border-color:#232327}
 .card.ghost.slot::after{background:none}
+
+/* opponents' face-down cards: a small fan tucked at the avatar's top-right while they're in the hand */
+.av .fan{position:absolute;left:72%;top:-6%;width:.62em;height:.6em;pointer-events:none;animation:fade .3s ease both}
+.av .fan .card{position:absolute;bottom:0;width:.36em;transform-origin:50% 100%}
+.av .fan .card::after{inset:9%}
+.av .fan .card:first-child{left:0;transform:rotate(-10deg)}
+.av .fan .card:last-child{left:.2em;transform:rotate(12deg)}
 
 /* settings: deck picker */
 .set-h{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#6d6d72;margin:6px 0 8px}
