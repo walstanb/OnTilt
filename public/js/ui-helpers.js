@@ -7,7 +7,7 @@ export const SUITCH = {s:'♠︎',h:'♥︎',d:'♦︎',c:'♣︎'};
 export const fmtCode = c => (+c).toLocaleString('en-US');
 export const STAKES = [[1,2],[2,5],[5,10],[10,20],[25,50],[50,100],[100,200],[250,500]];
 export const AVATARS = ['🦁','🙂','👩🏽','👦🏻','🧔🏽','🐸','🦊','🐼','🐯','🐙','🤠','👽','🦄','🐻','😎','🤖'];
-export const EMOTES = ['👋','👏','😆','😫','😠','🥳'];
+export const EMOTES = ['👋','👏','😆','😫','😠','🖕','🥳'];
 // Fun names offered to new players (they can reroll or type their own).
 const NAME_A = ['Lucky','Sly','Wild','Cool','Bold','Lazy','Sneaky','Salty','Spicy','Quiet','Royal','Chill','Shady','Tilted','Cosmic','Grumpy','Turbo','Velvet','Midnight','Golden'];
 const NAME_B = ['Ace','Fox','Shark','Donkey','Joker','River','Bluff','Muck','Nuts','Fish','Whale','Cowboy','Kicker','Flop','Owl','Rocket','Duck','Bandit','Tiger','Pocket'];
