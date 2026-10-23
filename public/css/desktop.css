@@ -17,7 +17,7 @@
 @media (min-width:960px) and (min-height:560px){
   /* lobby: a two-column card — settings on the left, you + actions on the right */
   #app.lobby-wide{max-width:1040px;padding:32px 32px 28px;border:0;justify-content:center}
-  #app.lobby-wide .lobby{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:36px;height:auto;max-height:min(760px,100%);align-items:stretch}
+  #app.lobby-wide .lobby{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:36px;height:auto;min-height:0;max-height:min(760px,100%);align-items:stretch}
   #app.lobby-wide .panel{margin:0;border-radius:36px;padding:8px 28px 34px;display:flex;flex-direction:column;justify-content:center;min-height:540px}
   #app.lobby-wide .panel.join{justify-content:flex-start}
   #app.lobby-wide .panel .top{position:absolute;top:0;left:0;right:0;padding:18px 18px 0}
