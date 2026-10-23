@@ -148,27 +148,29 @@ body.zoomed .float{font-size:calc(46px * var(--z))}
 .btn.pre{color:#8e8e93;border-style:dashed;border-color:#2e2e33;font-size:clamp(14px,4cqw,18px)}
 .btn.pre.sel{color:var(--mint);border-style:solid;border-color:var(--mint);background:#0e1712}
 
-/* ---------- card backs: each design sets these variables; faces always stay classic ---------- */
-/* --cbk card fill, --cbb edge, --cbp pattern inside the frame, --cbf frame line, --cbi centre emblem colour */
-:root,.dk-red{ --cbk:linear-gradient(160deg,#e0434c,#a3131e 55%,#6e0b13); --cbb:#c12a34; --cbf:#ffffff6b; --cbi:#fff;
-  --cbp:repeating-linear-gradient(45deg,#ffffff17 0 1cqw,transparent 1cqw 7cqw),repeating-linear-gradient(-45deg,#ffffff17 0 1cqw,transparent 1cqw 7cqw); }
-.dk-navy{ --cbk:radial-gradient(130% 100% at 20% 0%,#4c5fe0,#1d2675 55%,#0b0f33); --cbb:#33409c; --cbf:#ffffff4d; --cbi:#dfe4ff;
-  --cbp:radial-gradient(circle,#ffffff2e 0 .9cqw,transparent 1.1cqw) 0 0/8cqw 8cqw; }
-.dk-mint{ --cbk:linear-gradient(150deg,#b8f5d6,#4cc3a8 50%,#2b6fa3); --cbb:#43ad9f; --cbf:#ffffff73; --cbi:#fff;
-  --cbp:radial-gradient(120% 60% at 50% 115%,#ffffff47,transparent 65%),repeating-linear-gradient(0deg,#ffffff14 0 .8cqw,transparent .8cqw 6cqw); }
-.dk-gold{ --cbk:linear-gradient(155deg,#ffd36b,#ff8a5b 50%,#d9467a); --cbb:#ef7a5f; --cbf:#ffffff73; --cbi:#fff;
-  --cbp:repeating-linear-gradient(120deg,#ffffff21 0 1cqw,transparent 1cqw 7cqw); }
-.dk-paper{ --cbk:linear-gradient(160deg,#fff,#e9e8e4); --cbb:#d4d1c9; --cbf:#1111112e; --cbi:#111;
-  --cbp:repeating-conic-gradient(#1111110d 0 25%,transparent 0 50%) 0 0/9cqw 9cqw; }
-.dk-stripes{ --cbk:linear-gradient(160deg,#26262b,#0e0e10); --cbb:#34343a; --cbf:#cde8c633; --cbi:var(--mint);
-  --cbp:repeating-linear-gradient(45deg,#ffffff0c 0 1.6cqw,transparent 1.6cqw 3.2cqw),repeating-linear-gradient(-45deg,#00000059 0 1.6cqw,transparent 1.6cqw 3.2cqw); }
+/* ---------- card backs: flat, bold designs on a white rim; faces always stay classic ---------- */
+/* every design sets all of: --cbk panel colour, --cbp pattern over it, --cbi emblem colour (transparent = none) */
+:root,.dk-red{ --cbk:#f2463c; --cbi:#fff;
+  --cbp:radial-gradient(circle,transparent 0 21cqw,#ffffffcc 21cqw 22.2cqw,transparent 22.6cqw),
+        radial-gradient(circle,transparent 0 15.4cqw,#ffffff66 15.4cqw 16.2cqw,transparent 16.6cqw) 0 0/34cqw 34cqw,
+        radial-gradient(circle,transparent 0 15.4cqw,#ffffff66 15.4cqw 16.2cqw,transparent 16.6cqw) 17cqw 17cqw/34cqw 34cqw; }
+.dk-stripes{ --cbk:#f7f7f5; --cbi:transparent;
+  --cbp:repeating-linear-gradient(-45deg,#111 0 3.4cqw,transparent 3.4cqw 9.6cqw); }
+.dk-navy{ --cbk:#2f45e0; --cbi:transparent;
+  --cbp:radial-gradient(circle,#f7f7f5 0 2.4cqw,transparent 2.7cqw) 0 0/12cqw 12cqw; }
+.dk-mint{ --cbk:#cde8c6; --cbi:transparent;
+  --cbp:repeating-conic-gradient(#12301f 0 25%,transparent 0 50%) 0 0/24cqw 24cqw; }
+.dk-gold{ --cbk:#ffd23f; --cbi:transparent;
+  --cbp:repeating-radial-gradient(circle,#111 0 1.8cqw,transparent 1.8cqw 7.2cqw); }
+.dk-paper{ --cbk:#111; --cbi:#f7f7f5;
+  --cbp:repeating-linear-gradient(0deg,#ffffff38 0 .8cqw,transparent .8cqw 10cqw),repeating-linear-gradient(90deg,#ffffff38 0 .8cqw,transparent .8cqw 10cqw); }
 
-.card.back{background:var(--cbk);border:0;box-shadow:inset 0 0 0 1.5px var(--cbb),0 2px 10px #0007}
-/* a soft sheen over the pattern, inside a thin frame */
-.card.back::after{inset:7%;border-radius:10%/7%;background:linear-gradient(165deg,#ffffff2b,transparent 45%),var(--cbp);box-shadow:inset 0 0 0 1px var(--cbf)}
-/* centre emblem: a spade in a diamond, tinted per design */
-.card.back::before{content:'';position:absolute;inset:0;margin:auto;width:44%;aspect-ratio:1;z-index:1;background:var(--cbi);opacity:.92;
-  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 1.5 30.5 16 16 30.5 1.5 16z' fill='none' stroke='%23000' stroke-width='1.3'/%3E%3Cpath d='M16 8.2c-3.1 3.1-5.9 5-5.9 7.8a3.1 3.1 0 0 0 5.2 2.3l-1.2 3.5h3.8l-1.2-3.5a3.1 3.1 0 0 0 5.2-2.3c0-2.8-2.8-4.7-5.9-7.8z'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 1.5 30.5 16 16 30.5 1.5 16z' fill='none' stroke='%23000' stroke-width='1.3'/%3E%3Cpath d='M16 8.2c-3.1 3.1-5.9 5-5.9 7.8a3.1 3.1 0 0 0 5.2 2.3l-1.2 3.5h3.8l-1.2-3.5a3.1 3.1 0 0 0 5.2-2.3c0-2.8-2.8-4.7-5.9-7.8z'/%3E%3C/svg%3E") center/contain no-repeat}
+.card.back{background:#f7f7f5;border:0;box-shadow:0 2px 10px #0008}
+/* the design's panel inside the white rim */
+.card.back::after{inset:6.5%;border-radius:11%/8%;background:var(--cbp),var(--cbk)}
+/* centre emblem (a sunburst) on the designs that have one */
+.card.back::before{content:'';position:absolute;inset:0;margin:auto;width:34%;aspect-ratio:1;z-index:1;background:var(--cbi);
+  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M22.28 17.67L27.60 19.08M20.60 20.59L24.50 24.47M17.69 22.28L19.13 27.59M14.33 22.28L12.92 27.60M11.41 20.60L7.53 24.50M9.72 17.69L4.41 19.13M9.72 14.33L4.40 12.92M11.40 11.41L7.50 7.53M14.31 9.72L12.87 4.41M17.67 9.72L19.08 4.40M20.59 11.40L24.47 7.50M22.28 14.31L27.59 12.87' stroke='%23000' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M22.28 17.67L27.60 19.08M20.60 20.59L24.50 24.47M17.69 22.28L19.13 27.59M14.33 22.28L12.92 27.60M11.41 20.60L7.53 24.50M9.72 17.69L4.41 19.13M9.72 14.33L4.40 12.92M11.40 11.41L7.50 7.53M14.31 9.72L12.87 4.41M17.67 9.72L19.08 4.40M20.59 11.40L24.47 7.50M22.28 14.31L27.59 12.87' stroke='%23000' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E") center/contain no-repeat}
 /* undealt board slots and your empty hand: quiet outlines, whatever the back design */
 .card.ghost.slot{border-color:#232327}
 .card.ghost.slot::after{background:none}
@@ -176,18 +178,20 @@ body.zoomed .float{font-size:calc(46px * var(--z))}
 /* opponents' face-down cards: a small fan tucked at the avatar's top-right while they're in the hand */
 .av .fan{position:absolute;left:72%;top:-6%;width:.62em;height:.6em;pointer-events:none;animation:fade .3s ease both}
 .av .fan .card{position:absolute;bottom:0;width:.36em;transform-origin:50% 100%}
-.av .fan .card::after{inset:9%}
 .av .fan .card:first-child{left:0;transform:rotate(-10deg)}
 .av .fan .card:last-child{left:.2em;transform:rotate(12deg)}
 
 /* settings: deck picker */
 .set-h{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#6d6d72;margin:6px 0 8px}
-.decks{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-bottom:14px}
-.deckopt{display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 4px 6px;border-radius:14px;border:2px solid transparent;background:#1c1c1f;transition:border-color .15s}
-.deckopt.sel{border-color:var(--mint)}
-.dkc{display:flex;gap:1px}
-.dkc{gap:2px} .dkc .mini{width:38px}
-.dkn{font-size:11px;color:#c7c7cc;white-space:nowrap}
-.deckopt.sel .dkn{color:var(--mint)}
+.decks{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:16px}
+.deckopt{display:flex;flex-direction:column;align-items:center;gap:8px;padding:12px 4px 8px;border-radius:18px;border:2px solid transparent;background:#1c1c1f;transition:border-color .15s,transform .15s}
+.deckopt:active{transform:scale(.96)}
+.deckopt.sel{border-color:#f7f7f5}
+/* two overlapping backs per design, like a small hand */
+.dkc{display:flex;padding-right:18px}
+.dkc .card{width:46px}
+.dkc .card+.card{margin-left:-28px;box-shadow:-4px 0 10px #0009}
+.dkn{font-size:12px;color:#8e8e93;white-space:nowrap}
+.deckopt.sel .dkn{color:#f7f7f5}
 /* your hand's name stays clear of the ⓘ and reaction buttons in the box corners */
 .hand .hn{max-width:calc(100% - 68px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

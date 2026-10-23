@@ -1150,13 +1150,13 @@ function historySheet(){
 }
 // Card back designs: a per-device look (card faces always stay classic). Each design is a CSS class
 // that sets the back's variables (see "card backs" in css/features.css); previews carry their own class.
-const DECKS=[['red','Classic Red'],['navy','Midnight'],['mint','Aurora'],['gold','Sunset'],['paper','Mono'],['stripes','Carbon']];
+const DECKS=[['red','Classic Red'],['stripes','Stripes'],['navy','Cobalt'],['mint','Mint'],['gold','Sunny'],['paper','Ink']];
 let deck=LS.get('ot-deck','red'); if(!DECKS.some(d=>d[0]===deck)) deck='red';
 const applyDeck=()=>{ for(const [d] of DECKS) document.documentElement.classList.toggle('dk-'+d, d===deck); };
 applyDeck();
 function settingsSheet(){
   const previews=DECKS.map(([id,name])=>`<button class="deckopt dk-${id} ${id===deck?'sel':''}" data-deck="${id}" aria-pressed="${id===deck}">
-      <span class="dkc">${cardHTML('back','mini')}</span><span class="dkn">${name}</span></button>`).join('');
+      <span class="dkc">${cardHTML('back')}${cardHTML('back')}</span><span class="dkn">${name}</span></button>`).join('');
   const bg=sheet('Settings', `<div class="set-h">Card backs</div><div class="decks">${previews}</div><div class="set-h">Sound & vibration</div>`, [
     {label:`Sound: ${fxPrefs.sound?'on':'off'}`, fn:()=>{ fxPrefs.sound=!fxPrefs.sound; play('chip'); settingsSheet(); }},
     {label:`Vibration: ${fxPrefs.vibe?'on':'off'}`, fn:()=>{ fxPrefs.vibe=!fxPrefs.vibe; play('chip'); settingsSheet(); }},
