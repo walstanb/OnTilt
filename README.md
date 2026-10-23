@@ -89,7 +89,8 @@ Every push to `main` runs `.github/workflows/deploy.yml`, which syntax-checks th
 - The host signs every update with a key made for the table; the invite link carries its fingerprint, so other players can't pretend to be the host. Guests only send their seat token to that verified host.
 - The host's browser is the dealer. It shuffles with `crypto.getRandomValues`, enforces the rules (blinds, min-raises, side pots, showdown), and sends each player only their own hole cards.
 - Connections are WebRTC via [Trystero](https://github.com/dmotz/trystero), which uses public Nostr relays just to introduce players. Game data then flows directly between browsers.
-- The host's table is saved in their browser. If the host closes the tab, play pauses; opening the same link again resumes it and players reconnect automatically.
+- The host's table is saved in their browser. If the host closes the tab, play pauses; opening the same link again resumes it and players reconnect automatically. For 20 seconds after it reopens, nobody is auto-folded or dealt out while they reconnect.
+- **Backup host:** with other players online, the host keeps one of them (the backup) updated with a card-free copy of the table and signs an endorsement of the backup's own key. If the host is gone for 20 seconds, the backup takes over: an unfinished hand is cancelled and bets are returned, then play continues. Guests accept the new host because its key chains back to the original host's key from the invite link. If the old host comes back, it sees the newer host's beacon and rejoins as a player. (Wi-Fi-only guests can't follow a new host; they re-scan the QR.)
 - 25-second shot clock. Disconnected players are auto-checked or folded.
 
 ## Notes

@@ -54,20 +54,42 @@ async function useHostKey(hk){ signer = hk ? { key:await crypto.subtle.importKey
 function sendState(pid, v){
   const s=JSON.stringify(v);
   if(!signer) return netSend({t:'state',s}, pid);
-  signQ=signQ.then(async()=>netSend({t:'state',s,pk:signer.pub,sig:b64(await crypto.subtle.sign(SIG,signer.key,utf8(s)))}, pid)).catch(e=>console.warn(e));
+  // a backup host that took over also sends the chain of endorsements back to the original host's key
+  const chain = S?.chain?.length ? { chain:S.chain, root:S.rootPub } : {};
+  signQ=signQ.then(async()=>netSend({t:'state',s,pk:signer.pub,sig:b64(await crypto.subtle.sign(SIG,signer.key,utf8(s))),...chain}, pid)).catch(e=>console.warn(e));
 }
-let hostFp='', verifyQ=Promise.resolve();          // guest
+// Endorsement chain: each link is a new host key signed by the previous one, starting at the original
+// host's key (the one pinned by the invite link). Returns the last key, or null if any link is bad.
+const certMsg = (table, c) => `ontilt-host|${table}|${c.epoch}|${c.pub}`;
+async function verifyChain(root, chain, table){
+  if(typeof root!=='string' || !Array.isArray(chain) || chain.length>32) return null;
+  let prev=root;
+  for(const [k,c] of chain.entries()){
+    if(!c || typeof c.pub!=='string' || typeof c.sig!=='string' || c.epoch!==k+1) return null;
+    const key=await crypto.subtle.importKey('raw',unb64(prev),SIG,false,['verify']);
+    if(!await crypto.subtle.verify(SIG,key,unb64(c.sig),utf8(certMsg(table,c)))) return null;
+    prev=c.pub;
+  }
+  return prev;
+}
+let hostFp='', hostEpoch=0, verifyQ=Promise.resolve();          // guest
 const hostKeys=new Map(), introduced=new Set();
 async function verifiedState(d){
   if(typeof d.s!=='string') return null;
   if(!canSign) return JSON.parse(d.s);              // insecure context: nothing to check with
   if(!d.sig || !d.pk) return null;
   const fp=await fingerprint(d.pk);
-  if(hostFp && fp!==hostFp) return null;
+  let epoch=0;
+  if(hostFp && fp!==hostFp){
+    // not the original host's key: only a successor endorsed (in a chain) by the original host passes
+    if(!d.chain || await fingerprint(d.root)!==hostFp || await verifyChain(d.root, d.chain, tableCode)!==d.pk) return null;
+    epoch=d.chain.length;
+  }
+  if(epoch<hostEpoch) return null;                 // an older host than the one we already follow
   let k=hostKeys.get(d.pk); if(!k){ k=await crypto.subtle.importKey('raw',unb64(d.pk),SIG,false,['verify']); hostKeys.set(d.pk,k); }
   if(!await crypto.subtle.verify(SIG,k,unb64(d.sig),utf8(d.s))) return null;
   if(!hostFp){ hostFp=fp; LS.set('ot-hk-'+tableCode, fp); }
-  return JSON.parse(d.s);
+  const v=JSON.parse(d.s); v.epoch=epoch; return v;
 }
 
 // ------------------------------ network ------------------------------
@@ -93,7 +115,7 @@ async function connect(code){
     if(isHost){ for(const s of S.seats) if(s&&s.token===me.token) s.pid=selfId; hostSync(); }
     else {
       // Keep saying hello until the host answers: covers lost messages and a host that opens the table after us.
-      const hi=()=>{ if(view && !hostLost || replaced) return; act.send({t:'hello',...publicHello()}).catch(()=>{}); };
+      const hi=()=>{ if(isHost || view && !hostLost || replaced) return; act.send({t:'hello',...publicHello()}).catch(()=>{}); };
       hi(); setInterval(hi, 3000);
     }
   }catch(e){
@@ -122,8 +144,93 @@ function wire(pid, ch, pc){
 }
 function lost(pid){
   if(isHost){ peers.delete(pid); for(const s of S.seats) if(s&&s.pid===pid){ s.connected=false; } S.seq++; hostSync(); }
-  else if(pid===hostPid){ hostLost=true; render(); }
+  else if(pid===hostPid){ hostLost=true; armTakeover(); render(); }
 }
+
+// ------------------------------ backup host ------------------------------
+// The host keeps one online player (the backup) up to date with a copy of the table that has no cards
+// or deck in it, and endorses a signing key the backup made for itself. If the host is gone for
+// TAKEOVER_MS, the backup becomes the host: the unfinished hand is cancelled and bets go back.
+// Every host broadcasts a beacon; an older host that comes back sees a newer one and rejoins as a player.
+const TAKEOVER_MS=20000, GRACE_MS=20000;
+let ended=false;
+const bk={ key:null, pending:false, sentAt:0, snap:null, chain:null, root:null, at:0, timer:null };
+const graceWaiting = () => (S.graceUntil||0)>Date.now() && S.seats.some(s=>s&&!s.bot&&!s.connected&&!s.leaving);
+function backupPid(){
+  if(!signer || !net) return null;
+  const me0=S.seats.findIndex(s=>s&&s.pid===myPid());
+  for(let k=1;k<=MAXS;k++){ const s=S.seats[((me0<0?0:me0)+k)%MAXS];
+    if(s && !s.bot && s.connected && s.pid && s.pid!==myPid() && peers.has(s.pid) && !links.has(s.pid)) return s.pid; }
+  return null;
+}
+async function issueCert(pid, pub){
+  if(!isHost || !signer || pid!==S.backup?.pid || typeof pub!=='string' || pub.length>200) return;
+  const c={ pub, epoch:(S.epoch||0)+1 };
+  c.sig=b64(await crypto.subtle.sign(SIG,signer.key,utf8(certMsg(S.table,c))));
+  if(S.backup?.pid===pid){ S.backup.cert=c; hostSync(); }
+}
+function snapshot(){
+  const { deck, burned, hostKey, backup, ...rest }=S;          // never the deck, cards or the host's private key
+  return { ...rest, seats:S.seats.map(s=>s&&{...s, cards:[]}), results:null, board:[] };
+}
+function sendBackup(){
+  const b=backupPid();
+  if(!b){ S.backup=null; return; }
+  if(S.backup?.pid!==b) S.backup={ pid:b, cert:null };
+  if(S.backup.cert) netSend({ t:'snap', s:snapshot(), chain:[...(S.chain||[]), S.backup.cert], root:S.rootPub }, b);
+}
+// guest side
+function backupDuty(v){
+  if(!v.backupYou || !canSign || isHost) return;
+  const mine = bk.key && bk.chain && bk.chain.at(-1)?.pub===bk.key.pub;
+  if(mine || bk.pending || Date.now()-bk.sentAt<5000) return;
+  bk.pending=true;
+  (bk.key ? Promise.resolve(bk.key) : makeHostKey()).then(k=>{ bk.key=k; bk.sentAt=Date.now(); netSend({t:'bkey', pub:k.pub}, hostPid); })
+    .catch(()=>{}).finally(()=>{ bk.pending=false; });
+}
+function armTakeover(){
+  if(isHost || ended || replaced || !bk.snap || !bk.key || bk.chain?.at(-1)?.pub!==bk.key.pub) return;
+  clearTimeout(bk.timer);
+  bk.armedAt=Date.now();
+  bk.timer=setTimeout(()=>{ if(hostLost && !isHost && !ended && !replaced) takeOver(); }, TAKEOVER_MS);
+}
+function fromSnap(snap, at){
+  const T=JSON.parse(JSON.stringify(snap)), mid=T.street!=='idle' && T.street!=='showdown';
+  for(const s of T.seats) if(s){
+    if(mid) s.stack+=s.total;                                 // the hand can't be finished without its cards: bets go back
+    Object.assign(s,{ bet:0, total:0, folded:false, allIn:false, cards:[], inHand:false, acted:false, last:'', show:false });
+  }
+  Object.assign(T,{ deck:[], burned:[], board:[], street:'idle', toAct:-1, curBet:0, runout:false, results:null, dead:0, turnEnd:0 });
+  if(T.tour && T.tour.started && !T.tour.finished) T.tour.levelEnds += Math.max(0, Date.now()-at);   // clock paused while nobody hosted
+  return { T, mid };
+}
+async function takeOver(){
+  const { T, mid }=fromSnap(bk.snap, bk.at);
+  S=T; S.chain=bk.chain; S.epoch=bk.chain.length; S.rootPub=bk.root; S.rootFp=await fingerprint(bk.root).catch(()=>hostFp);
+  S.hostKey=bk.key; S.backup=null; lobbyKey=bk.key;
+  await useHostKey(bk.key).catch(()=>{});
+  isHost=true; hostLost=false; hostPid=null; peers.clear(); introduced.clear();
+  for(const s of S.seats) if(s && !s.bot){ s.connected = s.token===me.token; s.pid = s.token===me.token ? myPid() : null; }
+  S.graceUntil=Date.now()+GRACE_MS;
+  note(mid ? 'The host left mid-hand · bets were returned' : 'The host left · play continues', 'level');
+  S.seq++; view=null; hostSync();
+  toast('The host left, so you’re hosting this table now', 5000);
+}
+// host side: someone newer is hosting this table, so step down and rejoin as a player
+async function onBeacon(d, pid){
+  if(!S || !signer || !S.rootPub || d.root!==S.rootPub || !Number.isInteger(d.epoch)) return;
+  const mine=S.epoch||0;
+  if(!(d.epoch>mine || (d.epoch===mine && mine>0 && typeof d.pk==='string' && d.pk<signer.pub))) return;
+  if(await verifyChain(d.root, d.chain, S.table)!==d.pk || d.chain.length!==d.epoch) return;
+  const code=S.table, rootFp=S.rootFp || await fingerprint(S.rootPub);
+  clearTimeout(timer); LS.del('pp-host-'+code);
+  isHost=false; S=null; signer=null; peers.clear(); hostPid=null; hostLost=true; view=null; introduced.clear();
+  hostFp=rootFp; LS.set('ot-hk-'+code, hostFp); hostEpoch=0;
+  netSend({t:'hello',...publicHello()}, pid);
+  toast('Another player is hosting this table now, so you rejoined as a player', 5000);
+  render();
+}
+setInterval(()=>{ if(isHost && net && S && S.rootPub && signer) net.act.send({ t:'beacon', epoch:S.epoch||0, chain:S.chain||[], root:S.rootPub, pk:signer.pub }).catch(()=>{}); }, 4000);
 function netSend(d, target){
   const out = c => { if(c.readyState==='open') try{ c.send(JSON.stringify(d)); }catch{} };
   if(target && links.has(target)) return out(links.get(target));
@@ -137,17 +244,19 @@ async function hasInternet(){
   catch{ return false; }
 }
 function onNet(d, pid){
-  if(isHost) return handle(d, pid);
+  if(isHost) return d && d.t==='beacon' ? onBeacon(d, pid) : handle(d, pid);
   if(d.t==='state'){
     // in order, one at a time: only states signed by this table's host get through
     verifyQ=verifyQ.then(async()=>{
-      const v=await verifiedState(d).catch(()=>null); if(!v || replaced) return;
-      hostPid=pid; hostLost=false; joinIssue='';
+      const v=await verifiedState(d).catch(()=>null); if(!v || replaced || isHost) return;
+      if(hostPid && pid!==hostPid && !hostLost && v.epoch<=hostEpoch) return;   // someone else claiming to host
+      hostEpoch=v.epoch; hostPid=pid; hostLost=false; joinIssue=''; clearTimeout(bk.timer); bk.timer=null;
       if(!introduced.has(pid)){ introduced.add(pid); netSend({t:'hello',...helloData()}, pid); }
       setView(v);
     });
   } else if(d.t==='emote' && pid===hostPid) floatEmote(d.seat, d.e);
-  else if(d.t==='ended' && pid===hostPid){ view=null; hostLost=true; render(); toast('The host closed the table',4000); }
+  else if(d.t==='ended' && pid===hostPid){ ended=true; view=null; hostLost=true; render(); toast('The host closed the table',4000); }
+  else if(d.t==='snap' && pid===hostPid && !hostLost){ bk.snap=d.s; bk.chain=d.chain; bk.root=d.root; bk.at=Date.now(); }
   else if(d.t==='replaced' && pid===hostPid){ replaced=true; view=null; hostLost=true; render(); }
 }
 
@@ -191,6 +300,7 @@ function handle(d, pid){
   const i = S.seats.findIndex(s=>s&&s.pid===pid);
   const host = pid===myPid();
   switch(d.t){
+    case 'bkey': issueCert(pid, d.pub); return;
     case 'hello': {
       const name=cleanName(d.name), av=cleanAv(d.av), token=cleanToken(d.token)||peers.get(pid)?.token||'';
       peers.set(pid,{token,name,av});
@@ -267,6 +377,7 @@ function nextHand(){
     if(S.tour.finished){ const w=S.tour.places.find(p=>p.place===1); note(w?`🏆 ${w.name} wins the tournament!`:'Tournament over','win'); return; }
     if(tourLevelUp(S, Date.now())) note(`Blinds up: ${fmt(S.sb)} / ${fmt(S.bb)}`,'level');
   }
+  if(graceWaiting()) return;            // schedule() deals once everyone is back (or the grace runs out)
   startHand(S);
 }
 
@@ -275,13 +386,16 @@ function schedule(){
   const bump = fn => () => { fn(); S.seq++; hostSync(); };
   if(S.street==='idle'){
     if(tourOn() && (!S.tour.started || S.tour.finished)) return;
+    // just reopened: give players a moment to reconnect before dealing them out
+    if(graceWaiting()){ timer=setTimeout(bump(()=>{}), Math.min(2000, S.graceUntil-Date.now())); return; }
     timer=setTimeout(bump(nextHand), 1600); return; }
   if(S.street==='showdown'){ const shown=Object.keys(S.results?.reveal||{}).length; timer=setTimeout(bump(nextHand), shown?6000:3200); return; }
   if(S.runout){ timer=setTimeout(bump(()=>endRound(S)), 1500); return; }
   if(S.toAct>=0){
     const i=S.toAct, s=S.seats[i];
     if(s.bot){ timer=setTimeout(bump(()=>{ const [a,amt]=botMove(S,i); applyAction(S,i,a,amt); }), 800+Math.random()*1400); return; }
-    const ms = s.connected && !s.leaving ? TURN_MS : 3500;
+    const grace=(S.graceUntil||0)-Date.now();
+    const ms = s.connected && !s.leaving ? TURN_MS : Math.max(3500, grace);   // reconnecting players aren't auto-folded
     S.turnEnd=Date.now()+ms; S.turnTotal=ms;
     timer=setTimeout(bump(()=>{ const t=S.seats[i]; if(t && S.toAct===i) applyAction(S,i,S.curBet>t.bet?'fold':'check'); }), ms);
   }
@@ -309,7 +423,7 @@ function viewFor(pid){
       levelLeft:T.started&&!T.finished&&T.level<MAX_LEVEL?Math.max(0,T.levelEnds-Date.now()):0, finalLevel:T.level>=MAX_LEVEL,
       next:blindsFor(T.baseSb,T.level+1), places:T.places.map(({name,av,place})=>({name,av,place})),
       myPlace:(T.places.find(p=>p.token===myToken)||{}).place||0 },
-    isHost: pid===myPid() };
+    isHost: pid===myPid(), backupYou: !!S.backup && S.backup.pid===pid };
 }
 let closed=false;
 function saveHost(){ if(!isHost || !S || closed) return; S.savedAt=Date.now(); LS.set('pp-host-'+S.table, S); }
@@ -318,6 +432,7 @@ setInterval(saveHost, 5000); addEventListener('pagehide', saveHost);
 function hostSync(){
   schedule();
   saveHost();
+  sendBackup();
   for(const pid of peers.keys()) sendState(pid, viewFor(pid));
   setView(viewFor(myPid()));
 }
@@ -328,6 +443,7 @@ function broadcastEmote(seat,e){
 
 // ------------------------------ client view ------------------------------
 function setView(v){
+  backupDuty(v);
   const prev=view; v.recvAt=performance.now(); view=v;
   const turnKey = v.handNo+':'+v.street+':'+v.toAct+':'+v.curBet;
   const myTurn = v.mySeat>=0 && v.toAct===v.mySeat && isActive(v);
@@ -626,7 +742,7 @@ function renderTable(prev){
   const swipeFold = myTurn && mine && !mine.folded && !mine.allIn && holeCards;
   const meRow=`<div class="me">${holeEl}${box}</div>`;
 
-  const banner = hostLost ? `<div class="banner">Lost connection to host… waiting</div>` : '';
+  const banner = hostLost ? `<div class="banner">${bk.timer && bk.armedAt ? 'The host disconnected · you’ll take over hosting in a few seconds if they don’t return' : 'Lost connection to host… waiting'}</div>` : '';
   const emo = ui.emoteOpen ? `<div class="shade" data-act="emoteClose"></div><div class="emobar">${EMOTES.map(e=>`<button data-act="em" data-v="${e}">${e}</button>`).join('')}</div>` : '';
   const potHTML = `<div class="pot">${v.pot>0||active?fmt(v.pot):''}</div><div class="why">${why}</div>`;
 
@@ -862,7 +978,7 @@ function sheet(title, text, buttons, cls=''){
 function closeSheet(bg){ if(bg.classList.contains('closing')) return; bg.classList.add('closing'); bg.onClose?.(); setTimeout(()=>bg.remove(),180);
   const o=bg.opener; if(o && o.isConnected && o!==document.body && !document.querySelector('.sheet-bg:not(.closing)')) o.focus({preventScroll:true}); }
 // The invite carries the host key's fingerprint (#1234567.<fp>) so guests can tell the real host apart.
-function inviteUrl(){ const fp=isHost||screen==='lobby' ? lobbyKey?.fp : hostFp; return location.origin+location.pathname+'#'+(tableCode||lobby.code)+(fp?'.'+fp:''); }
+function inviteUrl(){ const fp=isHost||screen==='lobby' ? (S?.rootFp || lobbyKey?.fp) : hostFp; return location.origin+location.pathname+'#'+(tableCode||lobby.code)+(fp?'.'+fp:''); }
 async function shareInvite(){
   const url=inviteUrl();
   if(navigator.share){ try{ await navigator.share({title:'OnTilt',text:`Join my OnTilt poker table`,url}); return; }catch(e){ if(e.name==='AbortError') return; } }
@@ -1045,7 +1161,7 @@ app.addEventListener('click', e=>{
       const what = v?.tour ? `Tournament · starting stack ${fmt(v.tour.stack)}` : v ? `Blinds ${fmt(v.sb)}/${fmt(v.bb)} · buy-in ${short(v.buyIn)}` : '';
       sheet(`Table ${fmtCode(tableCode)}`, `<p>${what}${isHost?' · you are hosting. The table saves automatically on this device.':''}</p>`, btns); break; }
     case 'leave':
-      if(isHost) sheet('Leave table?','You’re the host. The game pauses for everyone while you’re away. It’s saved on this device: open the same link or pick it from “Your tables” to resume.',[{label:'Leave',cls:'danger',fn:goHome}]);
+      if(isHost) sheet('Leave table?','You’re the host. If other players are online, one of them takes over hosting after 20 seconds and the game carries on. Otherwise it pauses until you come back: it’s saved on this device under “Your tables”.',[{label:'Leave',cls:'danger',fn:goHome}]);
       else sheet('Leave table?','Your chips stay at the table until you stand up.',[{label:'Stand up and leave',cls:'danger',fn:()=>{ send({t:'stand'}); setTimeout(goHome,250); }},{label:'Just leave',fn:goHome}]);
       break;
   }
@@ -1092,7 +1208,7 @@ async function startHosting(){
   const tour = lobby.game==='tourney'
     ? { started:false, finished:false, baseSb:sb, level:0, levelMs:SPEEDS[lobby.speed][1]*60000, levelEnds:0, places:[], stack:bb*TOUR_STACK_BB } : null;
   S=mkState({sb,bb,buyIn:bb*100,minBuy:bb*20,table:tableCode,mode:tour?'tourney':'cash',tour});
-  S.hostKey=hostKey; await useHostKey(hostKey).catch(()=>{});
+  S.hostKey=hostKey; S.rootPub=hostKey?.pub; S.rootFp=hostKey?.fp; S.chain=[]; S.epoch=0; await useHostKey(hostKey).catch(()=>{});
   S.seats[0]=mkSeat({token:me.token,pid:'local',name:me.name,av:me.av,stack:tour?tour.stack:S.buyIn});
   if(!tour) S.ledger[me.token]={name:me.name,buy:S.buyIn,out:0};
   history.replaceState(null,'','#'+tableCode+(hostKey?'.'+hostKey.fp:''));
@@ -1110,6 +1226,8 @@ async function resumeHost(code){
   for(const s of S.seats) if(s&&!s.bot){ s.connected = s.token===me.token; if(s.token===me.token) s.pid='local'; }
   // the blind clock stops while a tournament is closed
   if(S.tour && S.tour.started && !S.tour.finished && S.savedAt) S.tour.levelEnds += Math.max(0, Date.now()-S.savedAt);
+  S.rootPub ||= S.hostKey?.pub; S.rootFp ||= S.hostKey?.fp; S.chain ||= []; S.epoch ||= 0;
+  S.graceUntil=Date.now()+GRACE_MS;       // players need a moment to reconnect: don't auto-fold or skip them yet
   S.seq++; screen='table'; hostSync(); connect(code);
   toast('Table resumed');
 }
