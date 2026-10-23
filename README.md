@@ -76,7 +76,7 @@ Every push to `main` runs `.github/workflows/deploy.yml`, which syntax-checks th
   3. Host: point the camera (already open on the same screen) at the reply code. Repeat for each player.
   The same QR also works when the guest has internet: they connect online, and only fall back to Wi-Fi if that's slow.
 - **History:** `•••` > **Hand history** shows the last 15 hands.
-- **Hand rankings:** the list icon next to `•••`, or tap your hand's name (e.g. "Two Pair"), shows every hand from Royal Flush to High Card with yours highlighted.
+- **Hand rankings:** the list icon in the top-left corner of your player box, or tap your hand's name (e.g. "Two Pair"), shows every hand from Royal Flush to High Card with yours highlighted.
 - **Raises** must at least double the current bet (opening bets are at least one big blind).
 - **Live actions:** each seat shows what that player just did (Raise, Call, All in…), and the line under the pot says it in words ("lolaa raises to 40").
 - **Pre-actions:** while others act, pick Check / Fold, Check, Call X or Call any (Fold, Call X, Call any when facing a bet). It fires when your turn comes if it still applies; a pre-check is cancelled if someone bets, a pre-call if the amount changes.

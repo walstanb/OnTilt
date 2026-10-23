@@ -649,8 +649,8 @@ function renderTable(prev){
   if(T && T.started && !T.finished) sub=`Level ${T.level+1} · ${fmt(v.sb)}/${fmt(v.bb)} · ${T.finalLevel?'final level':`<span data-lvl>${lvlLeft(T.levelLeft)}</span>`}`;
   else if(T) sub = T.finished ? 'Tournament over' : 'Tournament · registering';
   else if(v) sub=`Blinds ${fmt(v.sb)}/${fmt(v.bb)}`;
-  const head=`<div class="top t2"><div class="tl"><button class="ico" data-act="leave" aria-label="Leave">${ICON.back}</button></div>
-    ${brand(sub)}<div class="tr"><button class="ico" data-act="ranks" aria-label="Hand rankings">${ICON.ranks}</button><button class="ico" data-act="menu" aria-label="Menu">${ICON.menu}</button></div></div>`;
+  const head=`<div class="top"><button class="ico" data-act="leave" aria-label="Leave">${ICON.back}</button>
+    ${brand(sub)}<button class="ico" data-act="menu" aria-label="Menu">${ICON.menu}</button></div>`;
   if(!v && lan.show && lan.svg){
     paint(head+`<div class="center-msg"><div class="lanreply">
       <div class="qr-box">${lan.svg}</div>
@@ -784,7 +784,7 @@ function renderTable(prev){
       ${seated?`<button class="av" data-act="odds" aria-label="Your odds">`:'<div class="av">'}${avatarSVG(a.av)}${v.dealer===anchor&&v.handNo?'<b class="d">D</b>':''}${seated?'</button>':'</div>'}
       ${seated && ui.odds.open ? oddsHTML() : ''}
       <div class="st">${a.stack>=1e6?short(a.stack):fmt(a.stack)}${chipViz(a.stack,maxStack)}</div>
-      ${seated?`<button class="smile" data-act="emote" aria-label="Reactions">${ICON.smile}</button>`:''}</div>`;
+      ${seated?`<button class="smile" data-act="emote" aria-label="Reactions">${ICON.smile}</button><button class="rkbtn" data-act="ranks" aria-label="Hand rankings">${ICON.ranks}</button>`:''}</div>`;
   } else {
     box=`<div class="hand"><div class="hn">Open seat</div><button class="plus" data-k="plus" data-act="sit" data-i="${anchor}" ${seated?'disabled':''}></button><div class="hn"></div></div>`;
   }
