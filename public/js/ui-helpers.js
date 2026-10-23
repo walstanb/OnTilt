@@ -26,7 +26,7 @@ export const ICON = {
 export function cardHTML(c, cls='', delay=0){
   // data-k keys the element by card so the patcher replaces (and re-animates) it when the card changes
   if(!c) return `<div class="card ghost ${cls}" data-k="ghost"></div>`;
-  if(c==='back') return `<div class="card back ${cls}" data-k="back"></div>`;
+  if(c==='back' || !/^[2-9TJQKA][shdc]$/.test(c)) return `<div class="card back ${cls}" data-k="back"></div>`;
   const red=c[1]==='h'||c[1]==='d', st=delay>0?` style="animation-delay:${delay}ms"`:'';
   return `<div class="card ${red?'red':''} ${cls}" data-k="${c}"${st}><span class="r">${c[0]==='T'?'10':c[0]}</span><span class="s">${SUITCH[c[1]]}</span></div>`;
 }

@@ -6,7 +6,7 @@
 
 /* ---------- seats ---------- */
 .seats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));flex:none;margin-top:4px}
-.seat{display:flex;flex-direction:column;align-items:center;transition:opacity .25s}
+.seat{display:flex;flex-direction:column;align-items:center;transition:opacity .25s;min-width:0}
 .seat.dim{opacity:.22}
 .pie-wrap{height:clamp(26px,7cqw,34px);display:grid;place-items:center}
 .pie{width:clamp(17px,4.4cqw,22px);aspect-ratio:1;border-radius:50%;
@@ -20,7 +20,11 @@
 .plus:disabled{opacity:.35}
 .nm{font-size:clamp(12px,3.3cqw,15px);color:var(--mut);margin-top:6px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 2px}
 .st{font-size:clamp(15px,4.2cqw,19px);font-weight:500;margin-top:2px;font-variant-numeric:tabular-nums}
-.under{height:clamp(46px,12cqw,58px);display:flex;white-space:nowrap;align-items:center;justify-content:center;gap:3px;margin-top:6px}
+.under{height:clamp(46px,12cqw,58px);width:100%;display:flex;white-space:nowrap;align-items:center;justify-content:center;gap:3px;margin-top:6px}
+/* shown cards shrink to the column; winnings sit on top of them instead of beside */
+.shown{position:relative;display:flex;gap:3px;justify-content:center;width:100%;max-width:calc(2*clamp(22px,6.4cqw,30px) + 3px)}
+.shown .mini{flex:1 1 0;min-width:0;width:auto}
+.chip.win.over{position:absolute;left:0;right:0;bottom:2px;margin:auto;width:max-content;min-width:0;height:22px;padding:0 7px;font-size:12px;box-shadow:0 0 0 2px var(--bg)}
 .chip{min-width:clamp(30px,8cqw,38px);height:clamp(30px,8cqw,38px);padding:0 8px;border-radius:999px;background:var(--fill);
   color:var(--gold);font-weight:600;font-size:clamp(13px,3.7cqw,17px);display:inline-grid;place-items:center;font-variant-numeric:tabular-nums}
 .chip.win{color:#0b0b0b;background:var(--green)}

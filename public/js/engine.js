@@ -77,8 +77,8 @@ function put(s,x){ x=Math.max(0,Math.min(x,s.stack)); s.stack-=x; s.bet+=x; s.to
 // ------------------------------ hand flow ------------------------------
 export function startHand(S){
   S.results=null; S.board=[]; S.burned=[]; S.runout=false; S.dead=0;
-  for(const s of S.seats) if(s){ Object.assign(s,{bet:0,total:0,folded:false,allIn:false,cards:[],acted:false,noReraise:false,last:'',show:false});
-    s.inHand = s.stack>0 && (s.connected||s.bot) && !s.leaving && !s.sittingOut; s.startStack=s.stack; }
+  for(const s of S.seats) if(s){ Object.assign(s,{bet:0,total:0,folded:false,allIn:false,cards:[],acted:false,noReraise:false,last:'',show:false,acts:0});
+    s.inHand = s.stack>0 && (s.connected||s.bot||S.mode==='tourney') && !s.leaving && !s.sittingOut; s.startStack=s.stack; }
   const n=S.seats.filter(s=>s&&s.inHand).length;
   if(n<2){ for(const s of S.seats) if(s) s.inHand=false; S.street='idle'; S.toAct=-1; return false; }
   S.handNo++; S.deck=newDeck();
@@ -119,7 +119,7 @@ function finishFold(S){
   S.seats[w].stack+=amt;
   for(const s of S.seats) if(s){ s.bet=0; }
   S.street='showdown'; S.toAct=-1; S.runout=false;
-  S.results={ won:{[w]:amt}, reveal:{}, hands:{}, desc:{}, best:{}, uncontested:true, pots:[{amt,elig:[w],winners:[w]}], summary:`${S.seats[w].name} wins ${fmt(amt)}` };
+  S.results={ won:{[w]:amt}, back:{}, reveal:{}, hands:{}, desc:{}, best:{}, uncontested:true, pots:[{amt,elig:[w],winners:[w]}], summary:`${S.seats[w].name} wins ${fmt(amt)}` };
   logHand(S);
 }
 
@@ -132,10 +132,13 @@ function showdown(S){
   for(const L of levels){
     const amt=C.reduce((a,c)=>a+Math.min(c.t,L)-Math.min(c.t,prev),0);
     const elig=C.filter(c=>c.live&&c.t>=L).map(c=>c.i);
+    // chips only one player put in at this level are an uncalled bet: they go back, they aren't won
+    const refund = elig.length===1 && C.filter(c=>c.t>prev).length===1;
     if(amt>0){
       const last=pots[pots.length-1];
-      if(!elig.length && last) last.amt+=amt;
-      else if(last && last.elig.join()===elig.join()) last.amt+=amt;
+      if(refund) pots.push({amt,elig,refund:true});
+      else if(!elig.length && last) last.amt+=amt;
+      else if(last && !last.refund && last.elig.join()===elig.join()) last.amt+=amt;
       else if(elig.length) pots.push({amt,elig});
       else pots.push({amt,elig:Object.keys(scores).map(Number)}); // only folded money at this level: goes to everyone still in
     }
@@ -143,8 +146,9 @@ function showdown(S){
   }
   // money from players who left mid-hand joins the main pot
   if(S.dead){ if(pots.length) pots[0].amt+=S.dead; else pots.push({amt:S.dead,elig:Object.keys(scores).map(Number)}); }
-  const won={};
+  const won={}, back={};
   for(const p of pots){
+    if(p.refund){ const i=p.elig[0]; S.seats[i].stack+=p.amt; back[i]=(back[i]||0)+p.amt; p.winners=[i]; continue; }
     let best=null, W=[];
     for(const i of p.elig){ const c=best?cmp(scores[i],best):1; if(c>0){best=scores[i];W=[i];} else if(c===0) W.push(i); }
     W.sort((a,b)=>((a-S.dealer-1+MAXS)%MAXS)-((b-S.dealer-1+MAXS)%MAXS));   // odd chips go left of the button first
@@ -154,9 +158,8 @@ function showdown(S){
   }
   const reveal={}, hands={}, desc={};
   for(const i in scores){ reveal[i]=S.seats[i].cards; hands[i]=handName(scores[i]); desc[i]=describe(scores[i]); }
-  const ws=Object.keys(won).map(Number);
-  const summary = ws.map(i=>`${S.seats[i].name} wins ${fmt(won[i])}`).join(' · ') + (ws.length?` with ${desc[pots[0].winners[0]]}`:'');
-  S.results={won,reveal,hands,desc,best:fives,pots,summary};
+  const summary = Object.keys(won).map(i=>`${S.seats[i].name} wins ${fmt(won[i])} with ${desc[i]}`).join(' · ');
+  S.results={won,back,reveal,hands,desc,best:fives,pots,summary};
   logHand(S);
 }
 
@@ -195,7 +198,7 @@ export function applyAction(S,i,a,amt){
       s.last = s.allIn ? 'All in' : wasBet ? 'Bet' : 'Raise';
     }
   } else return false;
-  s.acted=true;
+  s.acted=true; s.acts=(s.acts||0)+1;
   proceed(S);
   return true;
 }
@@ -218,20 +221,25 @@ export function removeSeat(S,i){
 // Blind levels are multiples of the starting small blind.
 const LEVELS=[1,1.5,2,3,4,6,8,12,16,24,32,48,64,100,150,200,300,400];
 export function blindsFor(baseSb, level){ const m=LEVELS[Math.min(level,LEVELS.length-1)]; const sb=Math.round(baseSb*m); return [sb,sb*2]; }
+export const MAX_LEVEL=LEVELS.length-1;
 export function tourLevelUp(S, now){
   const T=S.tour; if(!T||!T.started||T.finished) return false;
   let up=false;
-  while(now>=T.levelEnds){ T.level++; T.levelEnds+=T.levelMs; up=true; }
+  while(now>=T.levelEnds && T.level<MAX_LEVEL){ T.level++; T.levelEnds+=T.levelMs; up=true; }
   if(up){ [S.sb,S.bb]=blindsFor(T.baseSb,T.level); }
   return up;
+}
+// The place the next player out finishes in: entrants count down as players are knocked out.
+export function nextPlace(S){
+  const T=S.tour; T.entrants ??= T.places.length + S.seats.filter(Boolean).length;
+  return T.entrants - T.places.length;
 }
 // After a hand: record busted players (bigger starting stack places higher) and detect the winner.
 export function tourSettle(S){
   const T=S.tour; if(!T||!T.started||T.finished) return [];
-  const busted=S.seats.map((s,i)=>s&&s.stack===0?{s,i}:null).filter(Boolean).sort((a,b)=>b.s.startStack-a.s.startStack);
+  const busted=S.seats.map((s,i)=>s&&s.stack===0?{s,i}:null).filter(Boolean).sort((a,b)=>a.s.startStack-b.s.startStack);
   const out=[];
-  let left=S.seats.filter(s=>s&&s.stack>0).length;
-  for(const {s,i} of [...busted].reverse()){ T.places.unshift({name:s.name,av:s.av,token:s.token,place:left+1}); left++; S.seats[i]=null; out.push(s.name); }
+  for(const {s,i} of busted){ T.places.push({name:s.name,av:s.av,token:s.token,place:nextPlace(S)}); S.seats[i]=null; out.push(s.name); }
   T.places.sort((a,b)=>a.place-b.place);
   const alive=S.seats.filter(s=>s&&s.stack>0);
   if(alive.length<=1){

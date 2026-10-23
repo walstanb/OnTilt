@@ -14,12 +14,15 @@ function ac(){
     const AC = window.AudioContext || window.webkitAudioContext; if(!AC) return null;
     ctx = new AC(); master = ctx.createGain(); master.gain.value = .8; master.connect(ctx.destination);
   }
-  if(ctx.state === 'suspended') ctx.resume().catch(() => {});
+  if(ctx.state !== 'running') ctx.resume().catch(() => {});   // 'suspended', or iOS's 'interrupted'
   return ctx;
 }
-// Browsers only allow audio after a user gesture: unlock on the first tap or key.
-const unlock = () => { ac(); removeEventListener('pointerdown', unlock); removeEventListener('keydown', unlock); };
-addEventListener('pointerdown', unlock); addEventListener('keydown', unlock);
+// Browsers only allow audio after a user gesture. Touch only counts on touchend/click, and the first
+// try can fail, so keep listening until the context is actually running.
+const GESTURES = ['pointerdown', 'touchend', 'click', 'keydown'];
+const unlock = () => { const c = ac(); if(c && c.state === 'running') GESTURES.forEach(t => removeEventListener(t, unlock, true)); };
+GESTURES.forEach(t => addEventListener(t, unlock, true));
+document.addEventListener('visibilitychange', () => { if(!document.hidden && ctx && ctx.state !== 'running') ctx.resume().catch(() => {}); });
 
 function tone(freq, { at = 0, dur = .12, type = 'sine', vol = .3, slide = 0, attack = .005 } = {}){
   const c = ctx, t = c.currentTime + at, o = c.createOscillator(), g = c.createGain();
@@ -57,6 +60,8 @@ const SOUNDS = {
   bust:   () => tone(262, { dur: .25, type: 'triangle', vol: .08, slide: -60 }),
   tick:   () => tone(1400, { dur: .02, vol: .025 }),
   level:  () => tone(660, { dur: .2, vol: .08 }),
+  // shot clock almost out: two quick high blips
+  warn:   () => { tone(1320, { dur: .07, vol: .07 }); tone(1320, { at: .14, dur: .07, vol: .07 }); },
 };
 // One sound per reaction, matched to its mood. Keys are the emoji in EMOTES (ui-helpers.js).
 const EMOTE_SOUNDS = {
@@ -77,7 +82,7 @@ const EMOTE_SOUNDS = {
   default: () => tone(700, { dur: .09, vol: .07, slide: 200 }),
 };
 const EMOTE_BUZZ = { '👋': [8, 60, 8], '👏': [6, 60, 6, 80, 6, 60, 6], '😆': [8, 50, 8, 50, 8], '😫': 30, '😠': [40, 30, 40], '🖕': [12, 20, 12, 20, 12, 20, 12], '🥳': [10, 30, 10, 30, 30] };
-const BUZZ = { turn: [20, 50, 20], win: 40, allin: 25, fold: 8, check: 6, chip: 6, chips: 8, emote: 8, bust: 30, level: 15, tick: 6, flip: 8 };
+const BUZZ = { warn: [30, 60, 30], turn: [20, 50, 20], win: 40, allin: 25, fold: 8, check: 6, chip: 6, chips: 8, emote: 8, bust: 30, level: 15, tick: 6, flip: 8 };
 
 // iPhone: no browser there supports navigator.vibrate (Chrome, Safari, Firefox all use Apple's WebKit).
 // Since iOS 18, toggling a switch-style checkbox plays a light system haptic, so we click a hidden one.
@@ -101,7 +106,17 @@ export function buzz(pattern){
 }
 
 // `arg` picks a variant: the emoji for 'emote'.
+// Before the first tap or key (say, a host reopening a saved table while bots play), browsers block
+// audio and vibration: skip them instead of queueing sounds that would all fire on the first tap.
+const blocked = () => navigator.userActivation ? !navigator.userActivation.hasBeenActive : false;
 export function play(name, arg){
-  if(prefs.sound && SOUNDS[name] && ac()) try{ SOUNDS[name](arg); }catch{}
+  if(blocked()) return;
+  const c = prefs.sound && SOUNDS[name] && ac();
+  if(c){
+    const go = () => { try{ SOUNDS[name](arg); }catch{} };
+    // a paused context is resuming: play once it's running, unless that took too long to still make sense
+    if(c.state === 'running') go();
+    else { const t = performance.now(); c.resume().then(() => { if(performance.now() - t < 400) go(); }).catch(() => {}); }
+  }
   buzz(name === 'emote' ? EMOTE_BUZZ[arg] ?? BUZZ.emote : BUZZ[name]);
 }

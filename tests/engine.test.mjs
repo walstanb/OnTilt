@@ -119,7 +119,7 @@ for(let game = 0; game < 3000; game++){
     ok(chips(S) === before, `chips conserved at showdown (game ${game} hand ${h})`);
     const R2 = S.results; ok(!!R2, 'results present');
     if(R2){
-      const won = Object.values(R2.won).reduce((a, b) => a + b, 0);
+      const won = [...Object.values(R2.won), ...Object.values(R2.back || {})].reduce((a, b) => a + b, 0);
       ok(won === E.potTotal(S), `all chips awarded: won ${won} pot ${E.potTotal(S)}`);
       if(Object.keys(R2.hands).length) showdowns++;
       if(Object.keys(R2.won).length > 1) splits++;
@@ -178,7 +178,7 @@ console.log(`${hands} hands, ${actions} actions, ${showdowns} showdowns, ${split
   const cashed = E.removeSeat(S, j);
   ok(chips(S) + cashed === before, 'chips conserved when folded player leaves');
   while(S.street !== 'showdown'){ if(S.runout){ E.endRound(S); continue; } E.applyAction(S, S.toAct, S.curBet > S.seats[S.toAct].bet ? 'call' : 'check'); }
-  ok(Object.values(S.results.won).reduce((a, b) => a + b, 0) === E.potTotal(S) && S.dead > 0, 'dead money awarded');
+  ok([...Object.values(S.results.won), ...Object.values(S.results.back)].reduce((a, b) => a + b, 0) === E.potTotal(S) && S.dead > 0, 'dead money awarded');
   const after = S.seats.reduce((a, s) => a + (s ? s.stack : 0), 0);
   ok(after + cashed === before, `table chips after showdown ${after}+${cashed} == ${before}`);
 }
@@ -201,6 +201,66 @@ console.log(`${hands} hands, ${actions} actions, ${showdowns} showdowns, ${split
     eq(S.tour.places.map(p => p.place), [...Array(n).keys()].map(k => k+1), 'places are 1..n');
     if(hands > 5) ok(S.bb > 20, 'blinds went up');
   }
+}
+
+
+{ // an uncalled all-in comes back as a refund, and the summary names the winner's own hand
+  const S = E.mkState({ sb: 5, bb: 10, buyIn: 1000, minBuy: 200, table: 'R' });
+  S.seats[0] = E.mkSeat({ token: 'a', pid: 'a', name: 'Big', av: '', stack: 1000 });
+  S.seats[1] = E.mkSeat({ token: 'b', pid: 'b', name: 'Short', av: '', stack: 200 });
+  E.startHand(S);
+  S.seats[0].cards = ['Ks', 'Kd']; S.seats[1].cards = ['Ah', '2h'];
+  // deck pops from the end: burn, flop x3, burn, turn, burn, river
+  S.deck = ['9h', 'x1', '3c', 'x2', '7h', '5h', 'Jc', 'x3'];
+  E.applyAction(S, S.toAct, 'allin');
+  E.applyAction(S, S.toAct, 'call');
+  while(S.street !== 'showdown') E.endRound(S);
+  eq(S.results.won, { 1: 400 }, 'short stack wins the called pot');
+  eq(S.results.back, { 0: 800 }, 'uncalled chips go back to the big stack');
+  eq(S.results.summary, 'Short wins 400 with Flush · Ace high', 'summary names the winner\'s hand');
+  eq(S.seats[0].stack + S.seats[1].stack, 1200, 'chips conserved with refund');
+}
+
+{ // players busting in the same hand: the bigger starting stack takes the better place
+  const S = E.mkState({ sb: 10, bb: 20, buyIn: 0, minBuy: 0, table: 'P', mode: 'tourney',
+    tour: { started: true, finished: false, baseSb: 10, level: 0, levelMs: 1e9, levelEnds: 1e9, places: [] } });
+  ['A', 'B', 'Big', 'Small'].forEach((n, i) => { S.seats[i] = E.mkSeat({ token: n, pid: n, name: n, av: '', stack: 1000 }); });
+  S.seats[2].startStack = 1000; S.seats[2].stack = 0;
+  S.seats[3].startStack = 100; S.seats[3].stack = 0;
+  E.tourSettle(S);
+  eq(S.tour.places.map(p => [p.name, p.place]), [['Big', 3], ['Small', 4]], 'simultaneous busts placed by starting stack');
+  // someone leaving later takes the next place up, never a duplicate
+  S.tour.places.push({ name: 'A', place: E.nextPlace(S) }); S.seats[0] = null;
+  E.tourSettle(S);
+  eq(S.tour.places.map(p => p.place).sort(), [1, 2, 3, 4], 'places stay unique after a leaver');
+}
+
+{ // disconnected tournament players are still dealt in (they post blinds and time out)
+  const S = E.mkState({ sb: 10, bb: 20, buyIn: 0, minBuy: 0, table: 'D', mode: 'tourney',
+    tour: { started: true, finished: false, baseSb: 10, level: 0, levelMs: 1e9, levelEnds: 1e9, places: [] } });
+  for(const i of [0, 1, 2]) S.seats[i] = E.mkSeat({ token: 't'+i, pid: 'p'+i, name: 'P'+i, av: '', stack: 1000 });
+  S.seats[1].connected = false;
+  E.startHand(S);
+  ok(S.seats[1].inHand, 'disconnected tournament player dealt in');
+  const C = E.mkState({ sb: 10, bb: 20, buyIn: 1000, minBuy: 0, table: 'C' });
+  for(const i of [0, 1, 2]) C.seats[i] = E.mkSeat({ token: 't'+i, pid: 'p'+i, name: 'P'+i, av: '', stack: 1000 });
+  C.seats[1].connected = false; E.startHand(C);
+  ok(!C.seats[1].inHand, 'disconnected cash player sits out');
+}
+
+{ // blind levels stop at the last one
+  const S = E.mkState({ sb: 10, bb: 20, buyIn: 0, minBuy: 0, table: 'L', mode: 'tourney',
+    tour: { started: true, finished: false, baseSb: 10, level: 0, levelMs: 1, levelEnds: 1, places: [] } });
+  E.tourLevelUp(S, 1e6);
+  eq(S.tour.level, E.MAX_LEVEL, 'level capped');
+}
+
+{ // repeated identical actions are counted
+  const S = E.mkState({ sb: 5, bb: 10, buyIn: 1000, minBuy: 200, table: 'N' });
+  for(const i of [0, 1]) S.seats[i] = E.mkSeat({ token: 't'+i, pid: 'p'+i, name: 'P'+i, av: '', stack: 1000 });
+  E.startHand(S);
+  const a = S.toAct; E.applyAction(S, a, 'call'); E.applyAction(S, S.toAct, 'raise', 40); E.applyAction(S, a, 'call');
+  eq(S.seats[a].acts, 2, 'action counter');
 }
 
 if(fails){ console.error(`\n${fails} failures`); process.exit(1); }
