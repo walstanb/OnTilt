@@ -128,8 +128,10 @@ body.zoomed .float{font-size:calc(46px * var(--z))}
 @media (hover:none),(pointer:coarse){ .keys{display:none} }
 
 /* ---------- hand rankings: a button in your box, mirroring the reactions button ---------- */
-.rkbtn{position:absolute;left:-4px;top:-4px;width:40px;height:40px;border-radius:50%;background:#000;display:grid;place-items:center;color:#5c5c62;z-index:2}
-.rkbtn svg{width:25px;height:25px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round}
+/* ⓘ and reactions sit inside the box's top corners, clear of its border */
+.rkbtn,.hand .smile{position:absolute;top:6px;width:32px;height:32px;border-radius:50%;background:none;display:grid;place-items:center;color:#636369;z-index:2}
+.rkbtn{left:6px} .hand .smile{right:6px}
+.rkbtn svg,.hand .smile svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round}
 .rkbtn:active{color:#fff}
 @media (hover:hover){ .rkbtn:hover{background:var(--fill)} }
 .hnb{font:inherit;color:inherit;background:none;border:0;padding:0 6px;border-radius:8px;cursor:pointer;text-decoration:underline dotted #3a3a40;text-underline-offset:3px}
@@ -175,12 +177,6 @@ body.zoomed .float{font-size:calc(46px * var(--z))}
 .card.ghost.slot{border-color:#232327}
 .card.ghost.slot::after{background:none}
 
-/* opponents' face-down cards: a small fan tucked at the avatar's top-right while they're in the hand */
-.av .fan{position:absolute;left:72%;top:-6%;width:.62em;height:.6em;pointer-events:none;animation:fade .3s ease both}
-.av .fan .card{position:absolute;bottom:0;width:.36em;transform-origin:50% 100%}
-.av .fan .card:first-child{left:0;transform:rotate(-10deg)}
-.av .fan .card:last-child{left:.2em;transform:rotate(12deg)}
-
 /* settings: deck picker */
 .set-h{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#6d6d72;margin:6px 0 8px}
 .decks{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:16px}
@@ -194,4 +190,4 @@ body.zoomed .float{font-size:calc(46px * var(--z))}
 .dkn{font-size:12px;color:#8e8e93;white-space:nowrap}
 .deckopt.sel .dkn{color:#f7f7f5}
 /* your hand's name stays clear of the ⓘ and reaction buttons in the box corners */
-.hand .hn{max-width:calc(100% - 68px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hand .hn{max-width:calc(100% - 84px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

@@ -356,6 +356,9 @@ function handle(d, pid){
       [S.sb,S.bb]=blindsFor(T.baseSb,0); S.dealer=-1; S.handNo=0; S.log=[];
       for(const s of S.seats) if(s) s.stack=T.stack;
       note('Shuffle up and deal!','level'); S.seq++; break; }
+    case 'cstart': { if(!host||tourOn()||S.started) return;
+      if(S.seats.filter(Boolean).length<2){ toast('Need at least 2 players'); return; }
+      S.started=true; S.seq++; break; }
     case 'treset': { if(!host||!tourOn()||!S.tour.finished) return;
       Object.assign(S.tour,{started:false,finished:false,level:0,places:[]}); delete S.tour.entrants; [S.sb,S.bb]=blindsFor(S.tour.baseSb,0);
       S.street='idle'; S.results=null; S.board=[];
@@ -378,6 +381,7 @@ function nextHand(){
     if(s.leaving){ dropSeat(i); continue; }
     if(!tourOn() && s.bot && s.stack===0) s.stack=S.buyIn; }
   S.street='idle'; S.results=null;
+  if(!tourOn() && !S.started) return;
   if(tourOn()){
     if(!S.tour.started || S.tour.finished) return;
     const out=tourSettle(S);
@@ -393,7 +397,7 @@ function schedule(){
   if(S.seq===armedSeq) return; armedSeq=S.seq; clearTimeout(timer); S.turnEnd=0;
   const bump = fn => () => { fn(); S.seq++; hostSync(); };
   if(S.street==='idle'){
-    if(tourOn() && (!S.tour.started || S.tour.finished)) return;
+    if(tourOn() ? (!S.tour.started || S.tour.finished) : !S.started) return;   // the host starts the game
     // just reopened: give players a moment to reconnect before dealing them out
     if(graceWaiting()){ timer=setTimeout(bump(()=>{}), Math.min(2000, S.graceUntil-Date.now())); return; }
     timer=setTimeout(bump(nextHand), 1600); return; }
@@ -426,7 +430,7 @@ function viewFor(pid){
   return { table:S.table, mode:S.mode, sb:S.sb, bb:S.bb, buyIn:S.buyIn, minBuy:S.minBuy, seats, dealer:S.dealer, board:[...S.board],
     pot:potTotal(S), street:S.street, toAct:S.toAct, curBet:S.curBet, minRaise:S.minRaise,
     turnLeft:S.turnEnd?Math.max(0,S.turnEnd-Date.now()):0, turnTotal:S.turnTotal, mySeat, results:R, handNo:S.handNo, ledger,
-    log:(S.log||[]).slice(0,15), note:S.note||null,
+    log:(S.log||[]).slice(0,15), note:S.note||null, started:!!S.started,
     tour: T && { started:T.started, finished:T.finished, level:T.level, stack:T.stack, levelMs:T.levelMs,
       levelLeft:T.started&&!T.finished&&T.level<MAX_LEVEL?Math.max(0,T.levelEnds-Date.now()):0, finalLevel:T.level>=MAX_LEVEL,
       next:blindsFor(T.baseSb,T.level+1), places:T.places.map(({name,av,place})=>({name,av,place})),
@@ -697,6 +701,9 @@ function renderTable(prev){
   } else if(T && !T.started){
     ctrl = v.isHost && seatedN>=2 ? `<div class="ctrl"><button class="btn solid wide" data-act="tstart">Start tournament · ${seatedN} players</button></div>`
          : wide(v.isHost ? 'Waiting for players · tap + to add bots' : seated ? 'Waiting for the host to start' : 'Tap + to take a seat');
+  } else if(!T && !v.started){
+    ctrl = v.isHost && seatedN>=2 ? `<div class="ctrl"><button class="btn solid wide" data-act="cstart">Start game · ${seatedN} players</button></div>`
+         : wide(v.isHost ? 'Waiting for players · tap + to add bots' : seated ? 'Waiting for the host to start' : 'Tap + to take a seat');
   } else if(!seated){
     const full=v.seats.every(Boolean);
     ctrl = wide(T ? (T.myPlace ? `You finished #${T.myPlace} · watching` : 'Tournament running · watching') : full?'Table is full · watching':'Tap + to take a seat');
@@ -896,7 +903,7 @@ function seatHTML(v,i,seated,maxStack){
   const turn = v.toAct===i && active;
   return `<div class="seat ${dim?'dim':''} ${turn?'turn':''}">
     <div class="pie-wrap">${turn?'<div class="pie" data-timer></div>':''}</div>
-    <button class="av" data-k="av${esc(s.name)}" data-act="seatTap" data-i="${i}" data-seat-av="${i}" aria-label="${esc(s.name)}, ${fmt(s.stack)} chips${s.bot?', bot':''}${!s.connected?', disconnected':''}">${avatarSVG(s.av)}${!R && s.inHand && !s.folded && s.cards?.[0]==='back' ? `<span class="fan" aria-hidden="true">${cardHTML('back')}${cardHTML('back')}</span>` : ''}${v.dealer===i&&v.handNo?'<b class="d">D</b>':''}</button>
+    <button class="av" data-k="av${esc(s.name)}" data-act="seatTap" data-i="${i}" data-seat-av="${i}" aria-label="${esc(s.name)}, ${fmt(s.stack)} chips${s.bot?', bot':''}${!s.connected?', disconnected':''}">${avatarSVG(s.av)}${v.dealer===i&&v.handNo?'<b class="d">D</b>':''}</button>
     <div class="nm">${esc(s.name)}</div><div class="st">${amt(s.stack)}</div>
     <div class="under">${under}</div></div>`;
 }
@@ -1215,6 +1222,7 @@ app.addEventListener('click', e=>{
     case 'stand': send({t:'stand'}); break;
     case 'sitin': send({t:'sitout',on:false}); break;
     case 'tstart': send({t:'tstart'}); break;
+    case 'cstart': send({t:'cstart'}); break;
     case 'treset': send({t:'treset'}); break;
     case 'standings': standingsSheet(); break;
     case 'retry': location.reload(); break;
