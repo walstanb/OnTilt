@@ -264,6 +264,7 @@ let paintedScreen=null;
 function render(prev){
   app.classList.toggle('wide', screen!=='lobby' && deskMQ.matches);
   app.classList.toggle('lobby-wide', screen==='lobby' && deskMQ.matches);
+  app.classList.toggle('in-lobby', screen==='lobby');
   if(screen==='lobby') return renderLobby();
   // UI-only re-renders (no new state) compare against the current view so nothing re-animates
   return renderTable(prev===undefined ? view : prev);
