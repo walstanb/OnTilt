@@ -2,8 +2,11 @@
 // tag (and optional data-k key) match. Reused nodes keep running CSS transitions; new
 // nodes get their entry animations. Inputs keep their live value while focused.
 
+// Elements must also agree on id: nodes with an id usually carry JS handlers (the stakes ruler,
+// your cards, the raise slider), and reusing one for a different element would keep those handlers.
 const sameNode = (a, b) => a.nodeType === b.nodeType && a.nodeName === b.nodeName &&
-  (a.nodeType !== 1 || (a.getAttribute('data-k') ?? '') === (b.getAttribute('data-k') ?? ''));
+  (a.nodeType !== 1 || ((a.getAttribute('data-k') ?? '') === (b.getAttribute('data-k') ?? '') &&
+                        (a.id || '') === (b.id || '')));
 
 function patchAttrs(a, b){
   for(const { name } of [...a.attributes]) if(!b.hasAttribute(name)) a.removeAttribute(name);

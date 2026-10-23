@@ -14,7 +14,7 @@ const FILES = [
 const CDN = ['esm.sh', 'fonts.googleapis.com', 'fonts.gstatic.com'];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES.map(f => new Request(f, { cache: 'reload' })))).then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k.startsWith('ontilt-') && k !== CACHE).map(k => caches.delete(k))))
@@ -31,7 +31,8 @@ self.addEventListener('fetch', e => {
     e.respondWith((async () => {
       const cache = await caches.open(CACHE);
       try{
-        const res = await Promise.race([fetch(req), timeout(4000)]);
+        // revalidate with the server (ETag) so all modules come from the same deploy
+        const res = await Promise.race([fetch(req, { cache: 'no-cache' }), timeout(4000)]);
         if(res.ok) cache.put(req, res.clone());
         return res;
       }catch{
