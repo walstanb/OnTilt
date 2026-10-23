@@ -17,7 +17,8 @@
   60%{opacity:1}100%{transform:none;opacity:1}}
 .card{transition:opacity .3s ease,filter .3s ease}
 .hole{transition:transform .25s var(--out),opacity .25s ease}
-.hole.folded .card{transition:opacity .35s ease,transform .35s var(--out);transform:translateY(6px)}
+.hole.folded{transition:opacity .35s ease,filter .35s ease}
+.hole.folded .card{transition:transform .35s var(--out);transform:translateY(6px)}
 
 /* chips pop in when a bet appears or changes */
 .chip{animation:pop .32s var(--spring) both}
