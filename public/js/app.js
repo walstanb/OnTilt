@@ -279,8 +279,8 @@ function paint(html){
   } else morph(app, html);
 }
 const brand = sub => `<div class="brand"><span class="wm">${LOGO}<span>On<b>Tilt</b></span></span>${sub?`<small>${sub}</small>`:''}</div>`;
-// Logo mark: a single card outline, knocked off-square. Same art as assets/favicon.svg.
-const LOGO = `<svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><rect x="9" y="5" width="14" height="22" rx="3" fill="none" stroke="#cde8c6" stroke-width="2.2" transform="rotate(14 16 16)"/></svg>`;
+// Logo mark: a spade card knocked off-square in front of a straight one. Same art as assets/favicon.svg.
+const LOGO = `<svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><rect x="7" y="6" width="13" height="20" rx="2.6" fill="none" stroke="#5d5d63" stroke-width="2"/><g transform="rotate(16 18.5 16)"><rect x="11" y="5" width="15" height="22" rx="3" fill="#000"/><rect x="12" y="6" width="13" height="20" rx="2.6" fill="#cde8c6"/><path d="M18.5 10.6c-2.1 2.1-4 3.4-4 5.2a2.1 2.1 0 0 0 3.5 1.5l-.8 2.3h2.6l-.8-2.3a2.1 2.1 0 0 0 3.5-1.5c0-1.8-1.9-3.1-4-5.2z" fill="#000"/></g></svg>`;
 const mmss = ms => { const s=Math.ceil(ms/1000); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); };
 
 function savedTables(){
