@@ -72,7 +72,7 @@ Every push to `main` runs `.github/workflows/deploy.yml`, which syntax-checks th
   3. Host: point the camera (already open on the same screen) at the reply code. Repeat for each player.
   The same QR also works when the guest has internet: they connect online, and only fall back to Wi-Fi if that's slow.
 - **History:** `•••` > **Hand history** shows the last 15 hands.
-- **Sound & vibration:** toggle from `•••`.
+- **Sound & vibration:** toggle from `•••`. On iPhone (any browser, iOS 18+) vibration uses light system haptic taps, since iOS browsers don't support the web vibration API.
 - **Desktop:** wide screens use the same open layout as phones, widened, with an action bar at the bottom. Shortcuts: `F` fold, `C` or `Space` check/call, `R` min-raise, `↑` custom raise, `Enter` confirm, `H` hide cards, `Esc` close.
 - **Raise:** tap **Raise** for a min-raise, or **↑** for the slider with ½ Pot / Pot / All in.
 - **Reactions:** tap the smiley in your player box.

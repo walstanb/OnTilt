@@ -353,7 +353,7 @@ function renderLobby(){
     </div>`);
     const ruler=document.getElementById('ruler');
     const pick=e=>{ const r=ruler.getBoundingClientRect(); const x=(e.clientX-r.left)/r.width;
-      const k=Math.max(0,Math.min(STAKES.length-1,Math.round(x*(STAKES.length-1)))); if(k!==lobby.stake){ lobby.stake=k; readName(); renderLobby(); play('tick'); navigator.vibrate?.(8); } };
+      const k=Math.max(0,Math.min(STAKES.length-1,Math.round(x*(STAKES.length-1)))); if(k!==lobby.stake){ lobby.stake=k; readName(); renderLobby(); play('tick'); } };
     ruler.onpointerdown=e=>{ ruler.setPointerCapture(e.pointerId); pick(e); ruler.onpointermove=pick; };
     ruler.onpointerup=()=>{ ruler.onpointermove=null; };
   } else {
@@ -533,7 +533,7 @@ let raiseStops_=[];
 function setRaise(k){
   const rr=document.getElementById('rr'); if(!rr) return;
   k=Math.max(0,Math.min(raiseStops_.length-1,k)); const x=raiseStops_[k]; if(x===ui.raiseTo) return;
-  ui.raiseTo=x; play('tick'); navigator.vibrate?.(6);
+  ui.raiseTo=x; play('tick');
   [...rr.children].forEach((t,i)=>{ t.classList.toggle('on',i<k); t.classList.toggle('sel',i===k); });
   rr.setAttribute('aria-valuenow',x); document.getElementById('ramt').textContent=fmt(x);
   app.querySelectorAll('[data-act=preset]').forEach(b=>b.classList.toggle('sel',+b.dataset.v===x));
@@ -582,7 +582,7 @@ function bindHole(canFold){
     h.style.transform=''; h.style.opacity='';
     if(e.type==='pointerup' && !moved && performance.now()-t0<450) toggleHide(); };
 }
-function toggleHide(){ ui.hide=!ui.hide; LS.set('ot-hide',ui.hide); play('flip'); navigator.vibrate?.(8); render(); }
+function toggleHide(){ ui.hide=!ui.hide; LS.set('ot-hide',ui.hide); play('flip'); render(); }
 
 // timers (pie + border) animate locally from the host's "time left"; the level clock ticks once a second
 let lastSec=-1;
