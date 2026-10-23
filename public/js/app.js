@@ -635,12 +635,6 @@ function renderLobby(){
 }
 function readName(){ const el=document.getElementById('nm'); if(el){ me.name=el.value.trim().slice(0,14); saveMe(); } }
 
-// a thin bar under the stack whose fill shows each player's share of the biggest stack at the table
-function chipViz(stack, max){
-  if(!(stack>0) || !(max>0)) return '';
-  const p=Math.max(.06,Math.min(1,stack/max));
-  return `<span class="cviz ${stack===max?'lead':''}" aria-hidden="true"><i style="transform:scaleX(${p.toFixed(3)})"></i></span>`;
-}
 
 function renderTable(prev){
   const v=view;
@@ -783,7 +777,7 @@ function renderTable(prev){
       ${seated && hn && !hidden ? `<button class="hn hnb" data-act="ranks" aria-label="${esc(hn)} · see hand rankings">${esc(hn)}</button>` : `<div class="hn">${esc(hn)}</div>`}
       ${seated?`<button class="av" data-act="odds" aria-label="Your odds">`:'<div class="av">'}${avatarSVG(a.av)}${v.dealer===anchor&&v.handNo?'<b class="d">D</b>':''}${seated?'</button>':'</div>'}
       ${seated && ui.odds.open ? oddsHTML() : ''}
-      <div class="st">${a.stack>=1e6?short(a.stack):fmt(a.stack)}${chipViz(a.stack,maxStack)}</div>
+      <div class="st">${a.stack>=1e6?short(a.stack):fmt(a.stack)}</div>
       ${seated?`<button class="smile" data-act="emote" aria-label="Reactions">${ICON.smile}</button><button class="rkbtn" data-act="ranks" aria-label="Hand rankings">${ICON.ranks}</button>`:''}</div>`;
   } else {
     box=`<div class="hand"><div class="hn">Open seat</div><button class="plus" data-k="plus" data-act="sit" data-i="${anchor}" ${seated?'disabled':''}></button><div class="hn"></div></div>`;
@@ -903,7 +897,7 @@ function seatHTML(v,i,seated,maxStack){
   return `<div class="seat ${dim?'dim':''} ${turn?'turn':''}">
     <div class="pie-wrap">${turn?'<div class="pie" data-timer></div>':''}</div>
     <button class="av" data-k="av${esc(s.name)}" data-act="seatTap" data-i="${i}" data-seat-av="${i}" aria-label="${esc(s.name)}, ${fmt(s.stack)} chips${s.bot?', bot':''}${!s.connected?', disconnected':''}">${avatarSVG(s.av)}${v.dealer===i&&v.handNo?'<b class="d">D</b>':''}</button>
-    <div class="nm">${esc(s.name)}</div><div class="st">${amt(s.stack)}${chipViz(s.stack,maxStack)}</div>
+    <div class="nm">${esc(s.name)}</div><div class="st">${amt(s.stack)}</div>
     <div class="under">${under}</div></div>`;
 }
 
@@ -1154,11 +1148,24 @@ function historySheet(){
     : '<p>No hands played yet.</p>';
   sheet('Hand history', html, [], 'tall');
 }
+// Card designs: a per-device look. Each deck is a CSS class that sets the card colour variables
+// (see "card decks" in css/features.css); previews carry their own class so they show their deck.
+const DECKS=[['classic','Classic'],['four','Four-color'],['night','Night'],['mint','Mint'],['jumbo','Jumbo']];
+let deck=LS.get('ot-deck','classic'); if(!DECKS.some(d=>d[0]===deck)) deck='classic';
+const applyDeck=()=>{ for(const [d] of DECKS) document.documentElement.classList.toggle('dk-'+d, d===deck); };
+applyDeck();
 function settingsSheet(){
-  sheet('Sound & vibration', '', [
+  const previews=DECKS.map(([id,name])=>`<button class="deckopt dk-${id} ${id===deck?'sel':''}" data-deck="${id}" aria-pressed="${id===deck}">
+      <span class="dkc">${['Ad','Kc'].map(c=>cardHTML(c,'mini')).join('')}</span><span class="dkn">${name}</span></button>`).join('');
+  const bg=sheet('Settings', `<div class="set-h">Card design</div><div class="decks">${previews}</div><div class="set-h">Sound & vibration</div>`, [
     {label:`Sound: ${fxPrefs.sound?'on':'off'}`, fn:()=>{ fxPrefs.sound=!fxPrefs.sound; play('chip'); settingsSheet(); }},
     {label:`Vibration: ${fxPrefs.vibe?'on':'off'}`, fn:()=>{ fxPrefs.vibe=!fxPrefs.vibe; play('chip'); settingsSheet(); }},
   ]);
+  bg.addEventListener('click', e=>{
+    const b=e.target.closest('[data-deck]'); if(!b) return;
+    deck=b.dataset.deck; LS.set('ot-deck', deck); applyDeck(); play('flip');
+    bg.querySelectorAll('[data-deck]').forEach(x=>{ x.classList.toggle('sel', x===b); x.setAttribute('aria-pressed', x===b); });
+  });
 }
 
 // ------------------------------ input ------------------------------
@@ -1214,7 +1221,7 @@ app.addEventListener('click', e=>{
     case 'menu': {
       const btns=[{label:'Invite friends',cls:'primary',fn:shareInvite},{label:'Show QR code',fn:qrSheet},{label:'Hand history',fn:historySheet},{label:'Hand rankings',fn:rankingsSheet}];
       btns.push(v?.tour ? {label:'Standings',fn:standingsSheet} : {label:'Ledger',fn:ledgerSheet});
-      btns.push({label:'Sound & vibration',fn:settingsSheet});
+      btns.push({label:'Settings',fn:settingsSheet});
       if(v && v.mySeat>=0 && !v.tour){ const out=v.seats[v.mySeat].sittingOut; btns.push({label:out?'I’m back':'Sit out next hand',fn:()=>send({t:'sitout',on:!out})}); }
       if(v && v.mySeat>=0) btns.push({label:v.tour?.started?'Leave tournament':'Stand up',fn:()=>send({t:'stand'})});
       if(isHost) btns.push({label:'Close table for everyone',cls:'danger',fn:endTable});

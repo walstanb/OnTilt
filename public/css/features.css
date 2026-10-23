@@ -34,11 +34,8 @@
 .lbtn.sq{width:clamp(56px,15cqw,66px);flex:none;padding:0}
 .lbtn.sq svg{position:static;width:24px;height:24px;stroke:var(--mint);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 
-/* ---------- stack bar: fill shows share of the biggest stack ---------- */
+/* ---------- stack amount ---------- */
 .st{display:flex;flex-direction:column;align-items:center;gap:5px}
-.cviz{display:block;width:min(56px,70%);height:3px;border-radius:3px;background:#26262a;overflow:hidden}
-.cviz i{display:block;height:100%;background:#6d6d72;transform-origin:left;transition:transform .6s var(--out,ease),background .4s}
-.cviz.lead i{background:var(--mint)}
 
 /* ---------- your cards: no overlap glitch, tap to hide, swipe up to fold ---------- */
 .hole .card.ghost{background:var(--bg)}
@@ -151,3 +148,43 @@ body.zoomed .float{font-size:calc(46px * var(--z))}
 /* ---------- pre-actions ---------- */
 .btn.pre{color:#8e8e93;border-style:dashed;border-color:#2e2e33;font-size:clamp(14px,4cqw,18px)}
 .btn.pre.sel{color:var(--mint);border-style:solid;border-color:var(--mint);background:#0e1712}
+
+/* ---------- card decks: each deck sets these variables; cards read them ---------- */
+:root,.dk-classic{
+  --cf:linear-gradient(140deg,#fff 55%,#e9e9eb); --cbd:transparent;
+  --cs:#121212; --cc:#121212; --ch:var(--red); --cd:var(--red);
+  --cbk:linear-gradient(150deg,#1c1c20,#121214); --cbb:#2a2a2f; --cbs:#26262b;
+  --rl:13%; --rt:none; --rf:46cqw; --sf:36cqw; --rw:400;
+}
+.dk-four{ --cs:#121212; --cc:#1f9d55; --ch:#e5484d; --cd:#3b7ff2;
+  --cf:linear-gradient(140deg,#fff 55%,#e9e9eb); --cbd:transparent; --cbk:linear-gradient(150deg,#1c1c20,#121214); --cbb:#2a2a2f; --cbs:#26262b;
+  --rl:13%; --rt:none; --rf:46cqw; --sf:36cqw; --rw:400; }
+.dk-night{ --cf:linear-gradient(150deg,#2a2a2f,#1a1a1d); --cbd:#3a3a40; --cs:#f1f1f3; --cc:#f1f1f3; --ch:#ff8a80; --cd:#ff8a80;
+  --cbk:linear-gradient(150deg,#141416,#0b0b0c); --cbb:#2a2a2f; --cbs:#1f1f23;
+  --rl:13%; --rt:none; --rf:46cqw; --sf:36cqw; --rw:400; }
+.dk-mint{ --cf:linear-gradient(140deg,#f1f8ee 50%,#dcebd6); --cbd:transparent; --cs:#1b2a21; --cc:#1b2a21; --ch:#c8473d; --cd:#c8473d;
+  --cbk:linear-gradient(150deg,#1b2a21,#111a15); --cbb:#2c4a3a; --cbs:#24392d;
+  --rl:13%; --rt:none; --rf:46cqw; --sf:36cqw; --rw:400; }
+.dk-jumbo{ --cf:linear-gradient(140deg,#fff 55%,#e9e9eb); --cbd:transparent; --cs:#121212; --cc:#121212; --ch:var(--red); --cd:var(--red);
+  --cbk:linear-gradient(150deg,#1c1c20,#121214); --cbb:#2a2a2f; --cbs:#26262b;
+  --rl:50%; --rt:translateX(-50%); --rf:62cqw; --sf:46cqw; --rw:500; }
+
+.card{background:var(--cf);color:var(--cs);box-shadow:inset 0 0 0 1px var(--cbd)}
+.card.s-s{color:var(--cs)} .card.s-c{color:var(--cc)} .card.s-h{color:var(--ch)} .card.s-d{color:var(--cd)}
+.card .r{left:var(--rl);transform:var(--rt);font-size:var(--rf);font-weight:var(--rw)}
+.card .s{left:var(--rl);transform:var(--rt);font-size:var(--sf)}
+.card.back{background:var(--cbk);border-color:var(--cbb)}
+.card.back::after{background:repeating-linear-gradient(135deg,var(--cbs) 0 2.6cqw,transparent 2.6cqw 9.5cqw)}
+.hole .card:last-child{box-shadow:inset 0 0 0 1px var(--cbd),-6px 0 14px #0006}
+
+/* settings: deck picker */
+.set-h{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#6d6d72;margin:6px 0 8px}
+.decks{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin-bottom:14px}
+.deckopt{display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 4px 6px;border-radius:14px;border:2px solid transparent;background:#1c1c1f;transition:border-color .15s}
+.deckopt.sel{border-color:var(--mint)}
+.dkc{display:flex;gap:1px}
+.dkc{gap:2px} .dkc .mini{width:26px}
+.dkn{font-size:11px;color:#c7c7cc;white-space:nowrap}
+.deckopt.sel .dkn{color:var(--mint)}
+/* your overlapped left card keeps its index in the corner so it stays readable with centered decks */
+.hole .card:first-child{--rl:13%;--rt:none}

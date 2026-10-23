@@ -14,7 +14,7 @@ export const randomName = () => { const a=NAME_A[Math.floor(Math.random()*NAME_A
   return (a+b).length<=14 ? a+b : b+Math.floor(10+Math.random()*90); };
 export const BOTS = [['flint','a2'],['lolaa','a1'],['hot_duck','a3'],['eager_cat','a6'],['mav','a12'],['bluffy','a10'],['nits','a14']];   // [name, avatar id]
 export const ICON = {
-  ranks:'<svg viewBox="0 0 24 24"><path d="M5 6.5h14M5 12h10M5 17.5h6"/></svg>',
+  ranks:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5"/><circle cx="12" cy="7.8" r="1.1" fill="currentColor" stroke="none"/></svg>',
   qr:'<svg viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><path d="M14 14h2v2h-2zM18 18h2v2h-2zM14 18h2M18 14h2"/></svg>',
   dice:'<svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4"/><circle cx="9" cy="9" r="1.2" fill="currentColor"/><circle cx="15" cy="15" r="1.2" fill="currentColor"/><circle cx="15" cy="9" r="1.2" fill="currentColor"/><circle cx="9" cy="15" r="1.2" fill="currentColor"/></svg>',
   back:'<svg viewBox="0 0 24 24"><path d="M20 12H4M10 6l-6 6 6 6"/></svg>',
@@ -29,7 +29,7 @@ export function cardHTML(c, cls='', delay=0){
   if(!c) return `<div class="card ghost ${cls}" data-k="ghost"></div>`;
   if(c==='back' || !/^[2-9TJQKA][shdc]$/.test(c)) return `<div class="card back ${cls}" data-k="back"></div>`;
   const red=c[1]==='h'||c[1]==='d', st=delay>0?` style="animation-delay:${delay}ms"`:'';
-  return `<div class="card ${red?'red':''} ${cls}" data-k="${c}"${st}><span class="r">${c[0]==='T'?'10':c[0]}</span><span class="s">${SUITCH[c[1]]}</span></div>`;
+  return `<div class="card ${red?'red':''} s-${c[1]} ${cls}" data-k="${c}"${st}><span class="r">${c[0]==='T'?'10':c[0]}</span><span class="s">${SUITCH[c[1]]}</span></div>`;
 }
 let toastT;
 export function toast(msg, ms=2600){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),ms); }

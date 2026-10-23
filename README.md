@@ -76,11 +76,11 @@ Every push to `main` runs `.github/workflows/deploy.yml`, which syntax-checks th
   3. Host: point the camera (already open on the same screen) at the reply code. Repeat for each player.
   The same QR also works when the guest has internet: they connect online, and only fall back to Wi-Fi if that's slow.
 - **History:** `•••` > **Hand history** shows the last 15 hands.
-- **Hand rankings:** the list icon in the top-left corner of your player box, or tap your hand's name (e.g. "Two Pair"), shows every hand from Royal Flush to High Card with yours highlighted.
+- **Hand rankings:** the ⓘ button in the top-left corner of your player box, or tap your hand's name (e.g. "Two Pair"), shows every hand from Royal Flush to High Card with yours highlighted.
 - **Raises** must at least double the current bet (opening bets are at least one big blind).
 - **Live actions:** each seat shows what that player just did (Raise, Call, All in…), and the line under the pot says it in words ("lolaa raises to 40").
 - **Pre-actions:** while others act, pick Check / Fold, Check, Call X or Call any (Fold, Call X, Call any when facing a bet). It fires when your turn comes if it still applies; a pre-check is cancelled if someone bets, a pre-call if the amount changes.
-- **Sound & vibration:** toggle from `•••`. On iPhone (any browser, iOS 18+) vibration uses light system haptic taps, since iOS browsers don't support the web vibration API.
+- **Settings** (`•••` > **Settings**): card design (Classic, Four-color, Night, Mint, Jumbo; saved per device) and sound & vibration toggles. On iPhone (any browser, iOS 18+) vibration uses light system haptic taps, since iOS browsers don't support the web vibration API.
 - **Desktop:** wide screens use the same open layout as phones, widened, with an action bar at the bottom. Shortcuts: `F` fold, `C` or `Space` check/call, `R` min-raise, `↑` custom raise, `Enter` confirm, `H` hide cards, `Esc` close.
 - **Raise:** tap **Raise** for a min-raise, or **↑** for the slider with ½ Pot / Pot / All in.
 - **Reactions:** tap the smiley in your player box.
