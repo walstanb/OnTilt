@@ -35,10 +35,11 @@
 .lbtn.sq{width:clamp(56px,15cqw,66px);flex:none;padding:0}
 .lbtn.sq svg{position:static;width:24px;height:24px;stroke:var(--mint);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 
-/* ---------- stack bar: height shows share of the biggest stack ---------- */
-.st{display:flex;align-items:center;justify-content:center;gap:6px}
-.cviz{display:inline-block;width:3px;height:1em;border-radius:2px;background:linear-gradient(to top,#6d6d72 calc(var(--h)*100%),#26262a 0);transition:background .4s ease}
-.cviz.lead{background:linear-gradient(to top,var(--mint) calc(var(--h)*100%),#26262a 0)}
+/* ---------- stack bar: fill shows share of the biggest stack ---------- */
+.st{display:flex;flex-direction:column;align-items:center;gap:5px}
+.cviz{display:block;width:min(56px,70%);height:3px;border-radius:3px;background:#26262a;overflow:hidden}
+.cviz i{display:block;height:100%;background:#6d6d72;transform-origin:left;transition:transform .6s var(--out,ease),background .4s}
+.cviz.lead i{background:var(--mint)}
 
 /* ---------- your cards: no overlap glitch, tap to hide, swipe up to fold ---------- */
 .hole .card.ghost{background:var(--bg)}

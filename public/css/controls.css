@@ -9,10 +9,17 @@
 .btn.wide{width:100%}
 .btn.solid{background:#fff;color:#000;border-color:#fff;font-weight:500}
 .raise{display:flex;align-items:center;gap:14px;height:clamp(40px,10cqw,52px);margin-bottom:10px;padding-left:4px;flex:none}
-.raise .amt{min-width:5.2em;font-size:clamp(17px,4.6cqw,21px);font-variant-numeric:tabular-nums}
-.raise input{flex:1;-webkit-appearance:none;appearance:none;height:4px;border-radius:4px;background:#2a2a2f;outline:none}
-.raise input::-webkit-slider-thumb{-webkit-appearance:none;width:30px;height:30px;border-radius:50%;background:#fff;box-shadow:0 1px 6px #0008}
-.raise input::-moz-range-thumb{width:30px;height:30px;border-radius:50%;background:#fff;border:0}
+.raise .amt{min-width:4.6em;display:flex;flex-direction:column;line-height:1.1;font-variant-numeric:tabular-nums}
+.raise .amt small{font-size:12px;color:var(--mut);letter-spacing:.02em}
+.raise .amt b{font-size:clamp(19px,5.2cqw,24px);font-weight:500}
+.rruler{flex:1;align-self:stretch;display:flex;justify-content:space-between;align-items:center;touch-action:none;cursor:pointer;outline:none;padding:0 2px}
+.rruler i{display:block;width:3px;height:30%;border-radius:3px;background:#3a3a40;transition:height .12s,background .12s}
+.rruler i.key{height:55%}
+.rruler i.on{background:#8e8e93}
+.rruler i:last-child{background:#5a2a2c}
+.rruler i.sel{height:100%;background:#fff}
+.rruler:focus-visible i.sel{box-shadow:0 0 0 3px #fff4}
+.ctrl .btn.on.sel{border-color:#fff;color:#fff}
 .go{width:clamp(44px,11cqw,54px);aspect-ratio:1;border-radius:50%;background:#fff;color:#000;display:grid;place-items:center;flex:none}
 .go svg{width:24px;height:24px;stroke:#000;fill:none;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
 
@@ -23,7 +30,8 @@
 .hole .card:first-child{left:0}
 .hole .card:last-child{left:42%;box-shadow:-6px 0 14px #0006}
 .hole.drag{transition:none}
-.hole.folded .card{opacity:.3}
+/* dim the pair as one layer so the overlap doesn't show through */
+.hole.folded{opacity:.35;filter:grayscale(1)}
 .hand{position:relative;flex:1;border:2px solid var(--line);border-radius:clamp(20px,5.6cqw,28px);display:flex;flex-direction:column;
   align-items:center;justify-content:center;gap:2px;padding:8px 4px;min-width:0}
 .hand .hn{font-size:clamp(13px,3.6cqw,16px);color:var(--mut);height:1.3em;white-space:nowrap}

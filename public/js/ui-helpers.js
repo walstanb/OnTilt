@@ -35,3 +35,21 @@ let toastT;
 export function toast(msg, ms=2600){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),ms); }
 export const LS = { get(k,d){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch{ return d; } },
              set(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch{} }, del(k){ try{ localStorage.removeItem(k); }catch{} } };
+// Raise slider stops: every chip unit when the range is small, otherwise ~n "nice" amounts spaced
+// geometrically (bets scale with the pot), always keeping the ends and the pot presets.
+const NICE=[1,1.2,1.5,2,2.5,3,4,5,6,8,10];
+const nice=(x,unit)=>{ const mag=10**Math.floor(Math.log10(x));
+  const m=NICE.reduce((a,b)=>Math.abs(b*mag-x)<Math.abs(a*mag-x)?b:a); return Math.max(unit,Math.round(m*mag/unit)*unit); };
+export function raiseStops(lo, hi, unit, keys=[], n=18){
+  if((hi-lo)/unit<=n){ const out=[]; for(let x=lo;x<hi;x+=unit) out.push(x); return [...new Set([...out,...keys.filter(k=>k>lo&&k<hi),hi])].sort((a,b)=>a-b); }
+  const keep=x=>x===lo||x===hi||keys.includes(x), r=(hi/lo)**(1/n), all=new Set([lo,hi,...keys.filter(k=>k>lo&&k<hi)]);
+  for(let i=1;i<n;i++) all.add(nice(lo*r**i,unit));
+  const out=[];
+  for(const x of [...all].filter(x=>x>=lo&&x<=hi).sort((a,b)=>a-b)){
+    const p=out[out.length-1];
+    // drop a stop crowding its neighbour, preferring to keep the ends and presets
+    if(p!==undefined && x/p<1.08){ if(keep(x)&&!keep(p)&&p!==lo) out[out.length-1]=x; else if(keep(x)) out.push(x); continue; }
+    out.push(x);
+  }
+  return out;
+}

@@ -10,7 +10,7 @@ import { TURN_MS, APP_ID, TRYSTERO_URL, RELAY_URLS, TURN_CREDENTIALS_URL, TURN_S
 import { MAXS, rnd, bestOf, handName, mkState, mkSeat, potTotal, startHand, endRound, applyAction, botMove, fmt,
   isActive, removeSeat, blindsFor, tourLevelUp, tourSettle } from './engine.js';
 import { morph } from './morph.js';
-import { app, short, esc, fmtCode, STAKES, AVATARS, EMOTES, BOTS, ICON, cardHTML, toast, LS, randomName } from './ui-helpers.js';
+import { app, short, esc, fmtCode, STAKES, AVATARS, EMOTES, BOTS, ICON, cardHTML, toast, LS, randomName, raiseStops } from './ui-helpers.js';
 import { play, fx as fxPrefs } from './sound.js';
 import { qrSVG } from './qr.js';
 
@@ -348,11 +348,11 @@ function renderLobby(){
 }
 function readName(){ const el=document.getElementById('nm'); if(el){ me.name=el.value.trim().slice(0,14); saveMe(); } }
 
-// a slim bar whose height shows each player's share of the biggest stack at the table
+// a thin bar under the stack whose fill shows each player's share of the biggest stack at the table
 function chipViz(stack, max){
   if(!(stack>0) || !(max>0)) return '';
-  const p=Math.max(.12,Math.min(1,stack/max));
-  return `<span class="cviz ${stack===max?'lead':''}" aria-hidden="true" style="--h:${p.toFixed(3)}"></span>`;
+  const p=Math.max(.06,Math.min(1,stack/max));
+  return `<span class="cviz ${stack===max?'lead':''}" aria-hidden="true"><i style="transform:scaleX(${p.toFixed(3)})"></i></span>`;
 }
 
 function renderTable(prev){
@@ -425,13 +425,18 @@ function renderTable(prev){
       const potNow=v.pot+v.seats.reduce((a,s)=>a+(s?s.bet:0),0);
       const half=Math.min(maxTo,Math.max(minTo,Math.round(v.curBet+(potNow+toCall)/2)));
       const full=Math.min(maxTo,Math.max(minTo,v.curBet+potNow+toCall));
-      raisePanel=`<div class="raise"><span class="amt">↑ <b id="ramt" style="font-weight:400">${fmt(ui.raiseTo)}</b></span>
-        <input type="range" id="rng" min="${minTo}" max="${maxTo}" step="${v.sb}" value="${ui.raiseTo}">
+      raiseStops_=raiseStops(minTo,maxTo,v.sb,[half,full]);
+      ui.raiseTo=raiseStops_.reduce((a,b)=>Math.abs(b-ui.raiseTo)<Math.abs(a-ui.raiseTo)?b:a);
+      const k=raiseStops_.indexOf(ui.raiseTo), sel=x=>x===ui.raiseTo?'sel':'';
+      // a tick ruler like the lobby's stake picker: one tick per stop, pot presets taller, all-in red
+      raisePanel=`<div class="raise"><span class="amt"><small>Raise to</small><b id="ramt">${fmt(ui.raiseTo)}</b></span>
+        <div class="rruler" id="rr" role="slider" tabindex="0" aria-label="Raise amount" aria-valuemin="${minTo}" aria-valuemax="${maxTo}" aria-valuenow="${ui.raiseTo}">${
+          raiseStops_.map((x,i)=>`<i class="${i<k?'on':i===k?'sel':''} ${x===half||x===full?'key':''}"></i>`).join('')}</div>
         <button class="go" data-act="raiseGo" aria-label="Raise">${ICON.up}</button></div>`;
       ctrl=`<div class="ctrl" style="grid-template-columns:1fr 1fr 1fr .55fr">
-        <button class="btn on" data-act="preset" data-v="${half}">½ Pot</button>
-        <button class="btn on" data-act="preset" data-v="${full}">Pot</button>
-        <button class="btn on" data-act="preset" data-v="${maxTo}">All in</button>
+        <button class="btn on ${sel(half)}" data-act="preset" data-v="${half}">½ Pot</button>
+        <button class="btn on ${sel(full)}" data-act="preset" data-v="${full}">Pot</button>
+        <button class="btn on ${sel(maxTo)}" data-act="preset" data-v="${maxTo}">All in</button>
         <button class="btn on" data-act="raiseClose" aria-label="Close">${ICON.x}</button></div>`;
     }
   }
@@ -453,7 +458,7 @@ function renderTable(prev){
     box=`<div class="hand ${handTurn?'turn':''}" ${handTurn&&v.turnLeft?'data-timer':''} data-seat-av="${anchor}">
       <div class="hn">${esc(hn)}</div>
       <div class="av">${a.av}${v.dealer===anchor&&v.handNo?'<b class="d">D</b>':''}</div>
-      <div class="st">${chipViz(a.stack,maxStack)}${fmt(a.stack)}</div>
+      <div class="st">${fmt(a.stack)}${chipViz(a.stack,maxStack)}</div>
       ${seated?`<button class="smile" data-act="emote" aria-label="Reactions">${ICON.smile}</button>`:''}</div>`;
   } else {
     box=`<div class="hand"><div class="hn">Open seat</div><button class="plus" data-k="plus" data-act="sit" data-i="${anchor}" ${seated?'disabled':''}></button><div class="hn"></div></div>`;
@@ -487,9 +492,26 @@ function renderTable(prev){
   }
   runFx(fx, prev, v);
 
-  const rng=document.getElementById('rng');
-  if(rng) rng.oninput=()=>{ ui.raiseTo=+rng.value; document.getElementById('ramt').textContent=fmt(ui.raiseTo); };
+  bindRaise();
   bindHole(myTurn && mine && v.curBet>mine.bet);
+}
+
+// Raise ruler: drag or tap to snap between stops; updates in place so the drag isn't re-rendered under the finger.
+let raiseStops_=[];
+function setRaise(k){
+  const rr=document.getElementById('rr'); if(!rr) return;
+  k=Math.max(0,Math.min(raiseStops_.length-1,k)); const x=raiseStops_[k]; if(x===ui.raiseTo) return;
+  ui.raiseTo=x; play('tick'); navigator.vibrate?.(6);
+  [...rr.children].forEach((t,i)=>{ t.classList.toggle('on',i<k); t.classList.toggle('sel',i===k); });
+  rr.setAttribute('aria-valuenow',x); document.getElementById('ramt').textContent=fmt(x);
+  app.querySelectorAll('[data-act=preset]').forEach(b=>b.classList.toggle('sel',+b.dataset.v===x));
+}
+function stepRaise(d){ setRaise(raiseStops_.indexOf(ui.raiseTo)+d); }
+function bindRaise(){
+  const rr=document.getElementById('rr'); if(!rr) return;
+  const pick=e=>{ const r=rr.getBoundingClientRect(); setRaise(Math.round((e.clientX-r.left)/r.width*(raiseStops_.length-1))); };
+  rr.onpointerdown=e=>{ rr.setPointerCapture(e.pointerId); pick(e); rr.onpointermove=pick; };
+  rr.onpointerup=rr.onpointercancel=()=>{ rr.onpointermove=null; };
 }
 
 function seatHTML(v,i,seated,maxStack){
@@ -509,7 +531,7 @@ function seatHTML(v,i,seated,maxStack){
   return `<div class="seat ${dim?'dim':''} ${turn?'turn':''}">
     <div class="pie-wrap">${turn?'<div class="pie" data-timer></div>':''}</div>
     <button class="av" data-k="av${esc(s.name)}" data-act="seatTap" data-i="${i}" data-seat-av="${i}">${s.av}${v.dealer===i&&v.handNo?'<b class="d">D</b>':''}</button>
-    <div class="nm">${esc(s.name)}</div><div class="st">${chipViz(s.stack,maxStack)}${fmt(s.stack)}</div>
+    <div class="nm">${esc(s.name)}</div><div class="st">${fmt(s.stack)}${chipViz(s.stack,maxStack)}</div>
     <div class="under">${under}</div></div>`;
 }
 
@@ -546,7 +568,7 @@ let lastSec=-1;
 })();
 
 function floatEmote(seat,e){
-  play('emote');
+  play('emote',e);
   const el=document.querySelector(`[data-seat-av="${seat}"]`); if(!el) return;
   const r=el.getBoundingClientRect(), f=document.createElement('div');
   f.className='float'; f.textContent=e; f.style.left=(r.left+r.width/2)+'px'; f.style.top=(r.top+r.height/2)+'px';
@@ -741,13 +763,15 @@ app.addEventListener('click', e=>{
 });
 app.addEventListener('keydown', e=>{ if(e.target.id==='nm' && e.key==='Enter'){ e.preventDefault(); document.querySelector('[data-act=start],[data-act=join]')?.click(); } });
 
-// keyboard shortcuts (desktop): F fold, C / space check-call, R min-raise, ↑ custom raise, Enter confirm, H hide cards, Esc close
+// keyboard shortcuts (desktop): F fold, C / space check-call, R min-raise, ↑ custom raise (then ←/→ to size it), Enter confirm, H hide cards, Esc close
 document.addEventListener('keydown',e=>{
   if(e.metaKey||e.ctrlKey||e.altKey||e.target.closest?.('input:not([type=range])')) return;
   if(e.key==='Escape'){ const bg=document.querySelector('.sheet-bg:not(.closing)'); if(bg){ closeSheet(bg); return; }
     if(ui.emoteOpen){ ui.emoteOpen=false; render(); return; } if(ui.raiseOpen){ ui.raiseOpen=false; render(); } return; }
   if(screen==='lobby' || document.querySelector('.sheet-bg:not(.closing)')) return;
   if(e.key.toLowerCase()==='h' && document.querySelector('#hole.mine')){ toggleHide(); return; }
+  const step={ arrowleft:-1, arrowdown:-1, arrowright:1, arrowup:1 }[e.key.toLowerCase()];
+  if(step && document.getElementById('rr')){ e.preventDefault(); stepRaise(step); return; }
   const acts={ f:['fold'], c:['check','call'], ' ':['check','call'], r:['raiseMin'], arrowup:['raiseOpen'], enter:['raiseGo'] }[e.key.toLowerCase()];
   if(!acts) return;
   const b=acts.map(a=>app.querySelector(`button[data-act="${a}"]:not(:disabled)`)).find(Boolean);

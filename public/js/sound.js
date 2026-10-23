@@ -52,15 +52,34 @@ const SOUNDS = {
   turn:   () => tone(988, { dur: .22, vol: .09 }),
   win:    () => { tone(784, { dur: .18, vol: .08 }); tone(1175, { at: .1, dur: .28, vol: .07 }); },
   lose:   () => {},
-  emote:  () => tone(700, { dur: .09, vol: .07, slide: 200 }),
+  emote:  e => (EMOTE_SOUNDS[e] || EMOTE_SOUNDS.default)(),
   join:   () => tone(880, { dur: .14, vol: .06 }),
   bust:   () => tone(262, { dur: .25, type: 'triangle', vol: .08, slide: -60 }),
   tick:   () => tone(1400, { dur: .02, vol: .025 }),
   level:  () => tone(660, { dur: .2, vol: .08 }),
 };
+// One sound per reaction, matched to its mood. Keys are the emoji in EMOTES (ui-helpers.js).
+const EMOTE_SOUNDS = {
+  // wave: a friendly rising "hi-i"
+  '👋': () => { tone(660, { dur: .1, vol: .07 }); tone(880, { at: .09, dur: .16, vol: .07 }); },
+  // clap: a short ragged burst of hand claps
+  '👏': () => [0, .09, .2, .28, .38].forEach((at, i) => noise({ at, dur: .05, vol: .09 - i*.008, freq: 1500, q: 1.2 })),
+  // laugh: bouncy "ha-ha-ha-ha", stepping down
+  '😆': () => [620, 580, 540, 500].forEach((f, i) => tone(f, { at: i*.1, dur: .08, type: 'triangle', vol: .07, slide: 60 })),
+  // groan: a long, sagging sigh
+  '😫': () => tone(330, { dur: .5, type: 'triangle', vol: .07, slide: -150, attack: .06 }),
+  // angry: a low growl
+  '😠': () => { tone(110, { dur: .28, type: 'sawtooth', vol: .04, slide: -25, attack: .02 }); noise({ dur: .25, vol: .05, freq: 350, type: 'lowpass' }); },
+  // party: a popper, then a quick rising fanfare
+  '🥳': () => { noise({ dur: .07, vol: .08, freq: 5000, q: .6 }); [523, 659, 784, 1047].forEach((f, i) => tone(f, { at: .05 + i*.07, dur: .14, vol: .06 })); },
+  default: () => tone(700, { dur: .09, vol: .07, slide: 200 }),
+};
+const EMOTE_BUZZ = { '👋': [8, 60, 8], '👏': [6, 60, 6, 80, 6, 60, 6], '😆': [8, 50, 8, 50, 8], '😫': 30, '😠': [40, 30, 40], '🥳': [10, 30, 10, 30, 30] };
 const BUZZ = { turn: [20, 50, 20], win: 40, allin: 25, fold: 8, check: 6, chip: 6, chips: 8, emote: 8, bust: 30, level: 15 };
 
-export function play(name){
-  if(prefs.sound && SOUNDS[name] && ac()) try{ SOUNDS[name](); }catch{}
-  if(prefs.vibe && BUZZ[name]) navigator.vibrate?.(BUZZ[name]);
+// `arg` picks a variant: the emoji for 'emote'.
+export function play(name, arg){
+  if(prefs.sound && SOUNDS[name] && ac()) try{ SOUNDS[name](arg); }catch{}
+  const buzz = name === 'emote' ? EMOTE_BUZZ[arg] ?? BUZZ.emote : BUZZ[name];
+  if(prefs.vibe && buzz) navigator.vibrate?.(buzz);
 }
