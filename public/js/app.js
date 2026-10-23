@@ -360,13 +360,17 @@ function handle(d, pid){
       [S.sb,S.bb]=blindsFor(T.baseSb,0); S.dealer=-1; S.handNo=0; S.log=[];
       for(const s of S.seats) if(s) s.stack=T.stack;
       note('Shuffle up and deal!','level'); S.seq++; break; }
-    case 'voice': { if(i<0) return; const s=S.seats[i], was=s.voice;
+    case 'voiceopt': { if(!host) return; S.voiceOn=!!d.on;
+      if(!S.voiceOn) for(const x of S.seats) if(x) x.voice=null;
+      note(S.voiceOn ? 'Voice chat is on · tap the mic in your box to talk' : 'Voice chat is off');
+      S.seq++; break; }
+    case 'voice': { if(i<0 || d.on && !S.voiceOn) return; const s=S.seats[i], was=s.voice;
       const vid=String(d.vid||'').slice(0,16); if(!/^[a-z0-9]+$/.test(vid)) return;
       s.voice = d.on ? { vid, muted:!!d.muted, forced:!!(was?.forced && d.muted), guardUntil:was?.guardUntil||0 } : null;
       // muted by someone else, then unmuted themselves: nobody can mute them again for a while
       if(s.voice && was?.forced && !d.muted) s.voice.guardUntil=Date.now()+VOICE_GUARD_MS;
       S.seq++; break; }
-    case 'vmute': { const k=d.seat|0, s=S.seats[k]; if(i<0 || k===i || !s?.voice || s.voice.muted || s.voice.guardUntil>Date.now()) return;
+    case 'vmute': { const k=d.seat|0, s=S.seats[k]; if(!S.voiceOn || i<0 || k===i || !s?.voice || s.voice.muted || s.voice.guardUntil>Date.now()) return;
       s.voice.muted=true; s.voice.forced=true;
       const by=S.seats[i].name;
       if(s.pid===myPid()) setTimeout(()=>mutedBy(by)); else netSend({t:'vmuted',by}, s.pid);
@@ -446,7 +450,7 @@ function viewFor(pid){
   return { table:S.table, mode:S.mode, sb:S.sb, bb:S.bb, buyIn:S.buyIn, minBuy:S.minBuy, seats, dealer:S.dealer, board:[...S.board],
     pot:potTotal(S), street:S.street, toAct:S.toAct, curBet:S.curBet, minRaise:S.minRaise,
     turnLeft:S.turnEnd?Math.max(0,S.turnEnd-Date.now()):0, turnTotal:S.turnTotal, mySeat, results:R, handNo:S.handNo, ledger,
-    log:(S.log||[]).slice(0,15), note:S.note||null, started:!!S.started,
+    log:(S.log||[]).slice(0,15), note:S.note||null, started:!!S.started, voiceOn:!!S.voiceOn,
     tour: T && { started:T.started, finished:T.finished, level:T.level, stack:T.stack, levelMs:T.levelMs,
       levelLeft:T.started&&!T.finished&&T.level<MAX_LEVEL?Math.max(0,T.levelEnds-Date.now()):0, finalLevel:T.level>=MAX_LEVEL,
       next:blindsFor(T.baseSb,T.level+1), places:T.places.map(({name,av,place})=>({name,av,place})),
@@ -495,7 +499,7 @@ function setView(v){
   backupDuty(v);
   const prev=view; v.recvAt=performance.now(); view=v;
   if(voice.on){
-    if(v.mySeat<0){ leaveVoice(); }                           // voice is for players at the table
+    if(v.mySeat<0 || !v.voiceOn){ leaveVoice(); }                           // voice is for players at the table
     else if(!v.seats[v.mySeat].voice && performance.now()-(ui.vSent||0)>3000){ ui.vSent=performance.now(); setTimeout(sendVoice); }   // a new host doesn't know yet
   }
   const turnKey = v.handNo+':'+v.street+':'+v.toAct+':'+v.curBet;
@@ -826,7 +830,7 @@ function renderTable(prev){
       ${seated && ui.odds.open ? oddsHTML() : ''}
       <div class="st">${a.stack>=1e6?short(a.stack):fmt(a.stack)}</div>
       ${seated?`<button class="smile" data-act="emote" aria-label="Reactions">${ICON.smile}</button><button class="rkbtn" data-act="ranks" aria-label="Hand rankings">${ICON.ranks}</button>
-        <button class="mic ${voice.on?(voice.muted?'off':'live'):''}" data-act="mic" aria-label="${!voice.on?'Join voice chat':voice.muted?'Unmute your mic':'Mute your mic'}" aria-pressed="${voice.on&&!voice.muted}">${voice.on&&!voice.muted?ICON.mic:ICON.micOff}</button>`:''}</div>`;
+        ${v.voiceOn?`<button class="mic ${voice.on?(voice.muted?'off':'live'):''}" data-act="mic" aria-label="${!voice.on?'Join voice chat':voice.muted?'Unmute your mic':'Mute your mic'}" aria-pressed="${voice.on&&!voice.muted}">${voice.on&&!voice.muted?ICON.mic:ICON.micOff}</button>`:''}`:''}</div>`;
   } else {
     box=`<div class="hand"><div class="hn">Open seat</div><button class="plus" data-k="plus" data-act="sit" data-i="${anchor}" ${seated?'disabled':''}></button><div class="hn"></div></div>`;
   }
@@ -1284,6 +1288,7 @@ app.addEventListener('click', e=>{
       const btns=[{label:'Invite friends',cls:'primary',fn:shareInvite},{label:'Show QR code',fn:qrSheet},{label:'Hand history',fn:historySheet}];
       btns.push(v?.tour ? {label:'Standings',fn:standingsSheet} : {label:'Ledger',fn:ledgerSheet});
       btns.push({label:'Settings',fn:settingsSheet});
+      if(isHost) btns.push({label:v?.voiceOn?'Turn off voice chat':'Turn on voice chat',fn:()=>send({t:'voiceopt',on:!v?.voiceOn})});
       if(voice.on) btns.push({label:'Leave voice chat',fn:()=>{ leaveVoice(); sendVoice(); render(); }});
       if(v && v.mySeat>=0 && !v.tour){ const out=v.seats[v.mySeat].sittingOut; btns.push({label:out?'I’m back':'Sit out next hand',fn:()=>send({t:'sitout',on:!out})}); }
       if(v && v.mySeat>=0) btns.push({label:v.tour?.started?'Leave tournament':'Stand up',fn:()=>send({t:'stand'})});
