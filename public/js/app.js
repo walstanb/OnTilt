@@ -497,7 +497,7 @@ function renderTable(prev){
   }
   const holeEl=`<div class="hole ${mine&&mine.folded?'folded':''} ${holeCards?'mine':''}" id="hole">${hole}</div>`;
   const swipeFold = myTurn && mine && !mine.folded && !mine.allIn && holeCards;
-  const meRow=`<div class="me">${holeEl}${box}${swipeFold&&!deskMQ.matches?'<div class="hint">Swipe up to fold</div>':''}</div>`;
+  const meRow=`<div class="me">${holeEl}${box}</div>`;
 
   const banner = hostLost ? `<div class="banner">Lost connection to host… waiting</div>` : '';
   const emo = ui.emoteOpen ? `<div class="shade" data-act="emoteClose"></div><div class="emobar">${EMOTES.map(e=>`<button data-act="em" data-v="${e}">${e}</button>`).join('')}</div>` : '';

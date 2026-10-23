@@ -44,7 +44,6 @@
 .hole .card.ghost{background:var(--bg)}
 .hole .card.ghost:last-child{box-shadow:-8px 0 0 var(--bg)}
 .hole.mine{cursor:pointer;touch-action:none;-webkit-touch-callout:none}
-.me .hint{left:0;width:52%;top:-20px;bottom:auto;animation:fade .3s ease both;pointer-events:none}
 .hole .card.hid{animation:fade .2s ease both}
 .hole.flung{transition:transform .3s ease-in,opacity .3s ease-in !important;transform:translateY(-140px) rotate(-6deg) !important;opacity:0 !important}
 
