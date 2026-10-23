@@ -76,7 +76,10 @@ Every push to `main` runs `.github/workflows/deploy.yml`, which syntax-checks th
   3. Host: point the camera (already open on the same screen) at the reply code. Repeat for each player.
   The same QR also works when the guest has internet: they connect online, and only fall back to Wi-Fi if that's slow.
 - **History:** `•••` > **Hand history** shows the last 15 hands.
-- **Hand rankings:** `•••` > **Hand rankings** lists every hand from Royal Flush to High Card, with examples.
+- **Hand rankings:** the list icon next to `•••`, or tap your hand's name (e.g. "Two Pair"), shows every hand from Royal Flush to High Card with yours highlighted.
+- **Raises** must at least double the current bet (opening bets are at least one big blind).
+- **Live actions:** each seat shows what that player just did (Raise, Call, All in…), and the line under the pot says it in words ("lolaa raises to 40").
+- **Pre-actions:** while others act, pick Check / Fold, Check, Call X or Call any (Fold, Call X, Call any when facing a bet). It fires when your turn comes if it still applies; a pre-check is cancelled if someone bets, a pre-call if the amount changes.
 - **Sound & vibration:** toggle from `•••`. On iPhone (any browser, iOS 18+) vibration uses light system haptic taps, since iOS browsers don't support the web vibration API.
 - **Desktop:** wide screens use the same open layout as phones, widened, with an action bar at the bottom. Shortcuts: `F` fold, `C` or `Space` check/call, `R` min-raise, `↑` custom raise, `Enter` confirm, `H` hide cards, `Esc` close.
 - **Raise:** tap **Raise** for a min-raise, or **↑** for the slider with ½ Pot / Pot / All in.
@@ -90,7 +93,7 @@ Every push to `main` runs `.github/workflows/deploy.yml`, which syntax-checks th
 - The host's browser is the dealer. It shuffles with `crypto.getRandomValues`, enforces the rules (blinds, min-raises, side pots, showdown), and sends each player only their own hole cards.
 - Connections are WebRTC via [Trystero](https://github.com/dmotz/trystero), which uses public Nostr relays just to introduce players. Game data then flows directly between browsers.
 - The host's table is saved in their browser. If the host closes the tab, play pauses; opening the same link again resumes it and players reconnect automatically. For 20 seconds after it reopens, nobody is auto-folded or dealt out while they reconnect.
-- **Backup host:** with other players online, the host keeps one of them (the backup) updated with a card-free copy of the table and signs an endorsement of the backup's own key. If the host is gone for 20 seconds, the backup takes over: an unfinished hand is cancelled and bets are returned, then play continues. Guests accept the new host because its key chains back to the original host's key from the invite link. If the old host comes back, it sees the newer host's beacon and rejoins as a player. (Wi-Fi-only guests can't follow a new host; they re-scan the QR.)
+- **Backup host:** with other players online, the host keeps one of them (the backup) updated with a card-free copy of the table and signs an endorsement of the backup's own key. Hosts send a heartbeat every 2 seconds; if the host is gone (tab closed: instantly; silent connection: after 6 seconds) the backup takes over 5 seconds later: an unfinished hand is cancelled and bets are returned, then play continues. Guests accept the new host because its key chains back to the original host's key from the invite link. If the old host comes back, it sees the newer host's beacon and rejoins as a player. (Wi-Fi-only guests can't follow a new host; they re-scan the QR.)
 - 25-second shot clock. Disconnected players are auto-checked or folded.
 
 ## Notes

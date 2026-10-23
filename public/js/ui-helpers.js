@@ -14,6 +14,7 @@ export const randomName = () => { const a=NAME_A[Math.floor(Math.random()*NAME_A
   return (a+b).length<=14 ? a+b : b+Math.floor(10+Math.random()*90); };
 export const BOTS = [['flint','a2'],['lolaa','a1'],['hot_duck','a3'],['eager_cat','a6'],['mav','a12'],['bluffy','a10'],['nits','a14']];   // [name, avatar id]
 export const ICON = {
+  ranks:'<svg viewBox="0 0 24 24"><path d="M5 6.5h14M5 12h10M5 17.5h6"/></svg>',
   qr:'<svg viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><path d="M14 14h2v2h-2zM18 18h2v2h-2zM14 18h2M18 14h2"/></svg>',
   dice:'<svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4"/><circle cx="9" cy="9" r="1.2" fill="currentColor"/><circle cx="15" cy="15" r="1.2" fill="currentColor"/><circle cx="15" cy="9" r="1.2" fill="currentColor"/><circle cx="9" cy="15" r="1.2" fill="currentColor"/></svg>',
   back:'<svg viewBox="0 0 24 24"><path d="M20 12H4M10 6l-6 6 6 6"/></svg>',

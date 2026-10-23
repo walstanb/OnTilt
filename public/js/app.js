@@ -152,7 +152,8 @@ function lost(pid){
 // or deck in it, and endorses a signing key the backup made for itself. If the host is gone for
 // TAKEOVER_MS, the backup becomes the host: the unfinished hand is cancelled and bets go back.
 // Every host broadcasts a beacon; an older host that comes back sees a newer one and rejoins as a player.
-const TAKEOVER_MS=20000, GRACE_MS=20000;
+const TAKEOVER_MS=5000, GRACE_MS=20000, HEARTBEAT_MS=2000, SILENCE_MS=6000;
+let lastHeard=0;   // guest: last message from the host
 let ended=false;
 const bk={ key:null, pending:false, sentAt:0, snap:null, chain:null, root:null, at:0, timer:null };
 const graceWaiting = () => (S.graceUntil||0)>Date.now() && S.seats.some(s=>s&&!s.bot&&!s.connected&&!s.leaving);
@@ -230,7 +231,13 @@ async function onBeacon(d, pid){
   toast('Another player is hosting this table now, so you rejoined as a player', 5000);
   render();
 }
-setInterval(()=>{ if(isHost && net && S && S.rootPub && signer) net.act.send({ t:'beacon', epoch:S.epoch||0, chain:S.chain||[], root:S.rootPub, pk:signer.pub }).catch(()=>{}); }, 4000);
+// Heartbeat: every host beacons (also over Wi-Fi links) so players notice a vanished host within seconds,
+// instead of waiting for the connection to time out.
+setInterval(()=>{ if(isHost && S && (net || links.size)) netSend({ t:'beacon', epoch:S.epoch||0, chain:S.chain||[], root:S.rootPub, pk:signer?.pub }); }, HEARTBEAT_MS);
+setInterval(()=>{
+  if(isHost || !hostPid || hostLost || !view || !lastHeard) return;
+  if(Date.now()-lastHeard>SILENCE_MS){ hostLost=true; armTakeover(); render(); }
+}, 1000);
 function netSend(d, target){
   const out = c => { if(c.readyState==='open') try{ c.send(JSON.stringify(d)); }catch{} };
   if(target && links.has(target)) return out(links.get(target));
@@ -245,12 +252,13 @@ async function hasInternet(){
 }
 function onNet(d, pid){
   if(isHost) return d && d.t==='beacon' ? onBeacon(d, pid) : handle(d, pid);
+  if(pid===hostPid) lastHeard=Date.now();
   if(d.t==='state'){
     // in order, one at a time: only states signed by this table's host get through
     verifyQ=verifyQ.then(async()=>{
       const v=await verifiedState(d).catch(()=>null); if(!v || replaced || isHost) return;
       if(hostPid && pid!==hostPid && !hostLost && v.epoch<=hostEpoch) return;   // someone else claiming to host
-      hostEpoch=v.epoch; hostPid=pid; hostLost=false; joinIssue=''; clearTimeout(bk.timer); bk.timer=null;
+      hostEpoch=v.epoch; hostPid=pid; hostLost=false; joinIssue=''; clearTimeout(bk.timer); bk.timer=null; lastHeard=Date.now();
       if(!introduced.has(pid)){ introduced.add(pid); netSend({t:'hello',...helloData()}, pid); }
       setView(v);
     });
@@ -454,10 +462,44 @@ function setView(v){
   if(v.tour?.finished && !ui.finishedShown){ ui.finishedShown=true; setTimeout(standingsSheet, 900); }
   if(v.tour && !v.tour.finished) ui.finishedShown=false;
   cueSounds(prev, v, myTurn);
+  liveAction(prev, v);
+  runPre(v, myTurn);
   document.title = myTurn && document.hidden ? '● Your turn · OnTilt' : 'OnTilt';
   render(prev);
 }
 document.addEventListener('visibilitychange',()=>{ if(!document.hidden) document.title='OnTilt'; });
+
+// Live line under the pot: what the latest player just did ("lolaa raises to 40").
+function liveAction(prev, v){
+  if(!prev || v.handNo!==prev.handNo || v.board.length!==prev.board.length){ ui.live=null; }
+  if(!prev || v.handNo!==prev.handNo) return;
+  v.seats.forEach((s,i)=>{ const p=prev.seats[i];
+    if(!s || !p || !s.last || (s.last===p.last && s.acts===p.acts)) return;
+    const who = i===v.mySeat ? 'You' : esc(s.name), you=i===v.mySeat;
+    const text = {
+      Fold:`${who} fold${you?'':'s'}`, Check:`${who} check${you?'':'s'}`,
+      Call:`${who} call${you?'':'s'} ${amt(s.bet-(p.bet||0))}`, Bet:`${who} bet${you?'':'s'} ${amt(s.bet)}`,
+      Raise:`${who} raise${you?'':'s'} to ${amt(s.bet)}`, 'All in':`${who} ${you?'are':'is'} all in · ${amt(s.bet)}`,
+    }[s.last];
+    if(text) ui.live={ text, kind:s.last, key:v.handNo+':'+i+':'+s.acts };
+  });
+}
+
+// Pre-actions: choose while others act; it fires when your turn comes if it still makes sense.
+function runPre(v, myTurn){
+  if(ui.pre && ui.pre.hand!==v.handNo) ui.pre=null;
+  const m=v.mySeat>=0 && v.seats[v.mySeat];
+  if(!ui.pre || !myTurn || !m || m.folded || m.allIn) return;
+  const pre=ui.pre, toCall=v.curBet-m.bet; ui.pre=null;
+  let a=null;
+  if(pre.kind==='checkfold') a = toCall>0 ? 'fold' : 'check';
+  else if(pre.kind==='check') a = toCall>0 ? null : 'check';
+  else if(pre.kind==='fold') a = toCall>0 ? 'fold' : 'check';
+  else if(pre.kind==='call') a = toCall===pre.amt ? 'call' : null;
+  else if(pre.kind==='callany') a = 'call';
+  if(!a){ toast(pre.kind==='check' ? 'Someone bet, so your pre-check was cancelled' : 'The bet changed, so your pre-call was cancelled'); return; }
+  setTimeout(()=>{ if(view && view.toAct===view.mySeat && view.handNo===v.handNo) doAction(a); }, 350);
+}
 
 // Sounds follow what changed between two views, so host and guests hear the same thing.
 function cueSounds(prev, v, myTurn){
@@ -607,8 +649,8 @@ function renderTable(prev){
   if(T && T.started && !T.finished) sub=`Level ${T.level+1} · ${fmt(v.sb)}/${fmt(v.bb)} · ${T.finalLevel?'final level':`<span data-lvl>${lvlLeft(T.levelLeft)}</span>`}`;
   else if(T) sub = T.finished ? 'Tournament over' : 'Tournament · registering';
   else if(v) sub=`Blinds ${fmt(v.sb)}/${fmt(v.bb)}`;
-  const head=`<div class="top"><button class="ico" data-act="leave" aria-label="Leave">${ICON.back}</button>
-    ${brand(sub)}<button class="ico" data-act="menu" aria-label="Menu">${ICON.menu}</button></div>`;
+  const head=`<div class="top t2"><div class="tl"><button class="ico" data-act="leave" aria-label="Leave">${ICON.back}</button></div>
+    ${brand(sub)}<div class="tr"><button class="ico" data-act="ranks" aria-label="Hand rankings">${ICON.ranks}</button><button class="ico" data-act="menu" aria-label="Menu">${ICON.menu}</button></div></div>`;
   if(!v && lan.show && lan.svg){
     paint(head+`<div class="center-msg"><div class="lanreply">
       <div class="qr-box">${lan.svg}</div>
@@ -674,7 +716,8 @@ function renderTable(prev){
     ctrl = wide(active?'Wait for the next hand': v.street==='showdown'?'Next hand…': seatedN>1? 'Starting…':'Waiting for players');
   } else {
     const toCall=v.curBet-mine.bet, maxTo=mine.bet+mine.stack;
-    const minTo=Math.min(v.curBet+v.minRaise,maxTo), canRaise=maxTo>v.curBet && !mine.allIn && !mine.noReraise;
+    const minTo=Math.min(v.curBet+(v.curBet===0 ? v.bb : Math.max(v.minRaise, v.curBet)),maxTo),   // raises at least double the bet (engine.raiseInc)
+           canRaise=maxTo>v.curBet && !mine.allIn && !mine.noReraise;
     const on=myTurn?'on':'', dis=myTurn?'':'disabled';
     const callLbl = toCall<=0 ? 'Check' : toCall>=mine.stack ? `All in ${fmt(mine.stack)}` : `Call ${fmt(toCall)}`;
     const rLbl = minTo>=maxTo ? `All in ${fmt(maxTo)}` : `${v.curBet===0?'Bet':'Raise'} ${fmt(minTo)}`;
@@ -685,7 +728,16 @@ function renderTable(prev){
       cols.push('1.3fr'); html+=`<button class="btn ${on}" ${dis} data-act="raiseMin" data-v="${minTo}">${rLbl}</button>`;
       if(minTo<maxTo){ cols.push('.55fr'); html+=`<button class="btn ${on}" ${dis} data-act="raiseOpen" aria-label="Custom raise">${ICON.up}</button>`; }
     }
-    if(mine.folded) ctrl=`<div class="ctrl" style="grid-template-columns:1fr 1fr"><button class="btn" disabled>Folded</button>${mine.show
+    if(!myTurn && !mine.folded && !mine.allIn){
+      // not your turn yet: pick what to do in advance
+      const sel=k=>ui.pre?.kind===k?'sel':'';
+      const opts = toCall>0
+        ? [['fold','Fold'],['call',toCall>=mine.stack?`Call all in`:`Call ${fmt(toCall)}`],['callany','Call any']]
+        : [['checkfold','Check / Fold'],['check','Check'],['callany','Call any']];
+      html=opts.map(([k,l])=>`<button class="btn pre ${sel(k)}" data-act="pre" data-v="${k}" data-amt="${k==='call'?toCall:''}" aria-pressed="${!!sel(k)}">${l}</button>`).join('');
+      ctrl=`<div class="ctrl" style="grid-template-columns:1fr 1.1fr 1fr">${html}</div>`;
+    }
+    else if(mine.folded) ctrl=`<div class="ctrl" style="grid-template-columns:1fr 1fr"><button class="btn" disabled>Folded</button>${mine.show
         ? '<button class="btn" disabled>Showing at the end</button>' : '<button class="btn on" data-act="show">Show cards at the end</button>'}</div>`;
     else if(mine.allIn){ ctrl=wide('All in'); }
     else ctrl=`<div class="ctrl" style="grid-template-columns:${cols.join(' ')}">${html}</div>`;
@@ -728,7 +780,7 @@ function renderTable(prev){
   let box;
   if(a){
     box=`<div class="hand ${handTurn?'turn':''}" ${handTurn&&v.turnLeft?'data-timer':''} data-seat-av="${anchor}">
-      <div class="hn">${esc(hn)}</div>
+      ${seated && hn && !hidden ? `<button class="hn hnb" data-act="ranks" aria-label="${esc(hn)} · see hand rankings">${esc(hn)}</button>` : `<div class="hn">${esc(hn)}</div>`}
       ${seated?`<button class="av" data-act="odds" aria-label="Your odds">`:'<div class="av">'}${avatarSVG(a.av)}${v.dealer===anchor&&v.handNo?'<b class="d">D</b>':''}${seated?'</button>':'</div>'}
       ${seated && ui.odds.open ? oddsHTML() : ''}
       <div class="st">${a.stack>=1e6?short(a.stack):fmt(a.stack)}${chipViz(a.stack,maxStack)}</div>
@@ -744,7 +796,8 @@ function renderTable(prev){
 
   const banner = hostLost ? `<div class="banner">${bk.timer && bk.armedAt ? 'The host disconnected · you’ll take over hosting in a few seconds if they don’t return' : 'Lost connection to host… waiting'}</div>` : '';
   const emo = ui.emoteOpen ? `<div class="shade" data-act="emoteClose"></div><div class="emobar">${EMOTES.map(e=>`<button data-act="em" data-v="${e}">${e}</button>`).join('')}</div>` : '';
-  const potHTML = `<div class="pot">${v.pot>0||active?fmt(v.pot):''}</div><div class="why">${why}</div>`;
+  const liveTxt = !why && active && ui.live ? `<span class="live ${/Raise|Bet|All in/.test(ui.live.kind)?'hot':''}" data-k="${ui.live.key}">${ui.live.text}</span>` : '';
+  const potHTML = `<div class="pot">${v.pot>0||active?fmt(v.pot):''}</div><div class="why">${why||liveTxt}</div>`;
 
   const fx=captureFx();
   // Desktop uses the same open layout as phones (a row of players, the board, your controls), just wider.
@@ -840,9 +893,12 @@ function seatHTML(v,i,seated,maxStack){
   if(shown) under = `<div class="rv"><div class="rvc shown">${shown.map(c=>cardHTML(c,`mini ${lit&&!lit.has(c)?'dimc':''}`)).join('')}${R.won[i]?`<span class="chip win over" data-k="w">+${short(R.won[i])}</span>`:''}</div>
       <div class="shand ${R.won[i]?'w':''}">${esc(R.hands[i] || (s.shownHand ? s.shownHand+' · shown' : ''))}</div></div>`;
   else if(R && R.won[i]) under=`<span class="chip win" data-k="w">+${amt(R.won[i])}</span>`;
-  else if(s.bet>0) under=`<span class="chip" data-k="b${s.bet}">${amt(s.bet)}</span>`;
-  else if(s.allIn && active) under=`<span class="tag">ALL IN</span>`;
-  else if(active && s.last==='Check') under=`<span class="tag" style="color:#6d6d72">CHECK</span>`;
+  else if(active && (s.bet>0 || s.allIn || s.last==='Check')){
+    // what they did this round, popping in again on every new action, above their bet
+    const tag = { Raise:'RAISE', Bet:'BET', Call:'CALL', 'All in':'ALL IN', Check:'CHECK', SB:'SB', BB:'BB' }[s.allIn ? 'All in' : s.last] || '';
+    const hot = /RAISE|BET|ALL IN/.test(tag);
+    under=`<div class="act-col">${tag?`<span class="tag ${hot?'':'cool'}" data-k="t${s.acts||0}${tag}">${tag}</span>`:''}${s.bet>0?`<span class="chip" data-k="b${s.bet}">${amt(s.bet)}</span>`:''}</div>`;
+  }
   const turn = v.toAct===i && active;
   return `<div class="seat ${dim?'dim':''} ${turn?'turn':''}">
     <div class="pie-wrap">${turn?'<div class="pie" data-timer></div>':''}</div>
@@ -1081,9 +1137,11 @@ const RANKINGS=[
   ['High Card','None of the above: highest card plays','Ah Jd 9c 6s 3h',1],
 ];
 function rankingsSheet(){
-  const html=`<div class="ranks">${RANKINGS.map(([name,what,cards,n],k)=>`<div class="rk">
+  // highlight the hand you currently hold
+  const m=view && view.seats[view.mySeat], cur=m && m.cards?.length ? handName(bestOf([...m.cards, ...view.board])) : '';
+  const html=`<div class="ranks">${RANKINGS.map(([name,what,cards,n],k)=>`<div class="rk ${name===cur?'cur':''}">
       <span class="rn">${k+1}</span>
-      <div class="rt"><b>${name}</b><span>${what}</span></div>
+      <div class="rt"><b>${name}${name===cur?' <i>· your hand</i>':''}</b><span>${what}</span></div>
       <div class="rc">${cards.split(' ').map((c,j)=>cardHTML(c, `mini ${j>=n?'dimc':''}`)).join('')}</div></div>`).join('')}</div>
     <p class="rnote">Ties break on the highest cards. Suits never rank; an ace can be high or low in a straight.</p>`;
   sheet('Hand rankings', html, [], 'tall ranks-sheet');
@@ -1141,6 +1199,8 @@ app.addEventListener('click', e=>{
     case 'em': ui.emoteOpen=false; if(!isHost) buzz(8); send({t:'emote',e:b.dataset.v}); render(); break;   // guests feel it now; the sound comes with the host's echo
     case 'rebuy': play('chips'); send({t:'rebuy'}); break;
     case 'show': play('flip'); send({t:'show'}); break;
+    case 'ranks': rankingsSheet(); break;
+    case 'pre': { const k=b.dataset.v; ui.pre = ui.pre?.kind===k ? null : { kind:k, amt:+b.dataset.amt||0, hand:v.handNo }; play('tick'); render(); break; }
     case 'odds': {
       const mine=v?.seats[v.mySeat];
       if(!ui.odds.open && !(mine?.cards?.length && mine.inHand && !mine.folded && isActive(v))){ toast('Your odds appear here once you’re dealt into a hand'); break; }
@@ -1161,7 +1221,7 @@ app.addEventListener('click', e=>{
       const what = v?.tour ? `Tournament · starting stack ${fmt(v.tour.stack)}` : v ? `Blinds ${fmt(v.sb)}/${fmt(v.bb)} · buy-in ${short(v.buyIn)}` : '';
       sheet(`Table ${fmtCode(tableCode)}`, `<p>${what}${isHost?' · you are hosting. The table saves automatically on this device.':''}</p>`, btns); break; }
     case 'leave':
-      if(isHost) sheet('Leave table?','You’re the host. If other players are online, one of them takes over hosting after 20 seconds and the game carries on. Otherwise it pauses until you come back: it’s saved on this device under “Your tables”.',[{label:'Leave',cls:'danger',fn:goHome}]);
+      if(isHost) sheet('Leave table?','You’re the host. If other players are online, one of them takes over hosting within about 10 seconds and the game carries on. Otherwise it pauses until you come back: it’s saved on this device under “Your tables”.',[{label:'Leave',cls:'danger',fn:goHome}]);
       else sheet('Leave table?','Your chips stay at the table until you stand up.',[{label:'Stand up and leave',cls:'danger',fn:()=>{ send({t:'stand'}); setTimeout(goHome,250); }},{label:'Just leave',fn:goHome}]);
       break;
   }

@@ -170,12 +170,15 @@ function logHand(S){
 }
 
 // What seat i may do right now (used by the UI and to validate actions).
+// Table rule: a raise must at least double the current bet (opening bets are at least one big blind).
+// Doubling is never less than the standard "previous raise" minimum, since a raise can't exceed the bet.
+export const raiseInc = S => S.curBet===0 ? S.bb : Math.max(S.minRaise, S.curBet);
 export function legalActions(S,i){
   const s=S.seats[i];
   if(!s || S.toAct!==i || !canAct(s) || !isActive(S) || S.runout) return null;
   const toCall=Math.max(0,S.curBet-s.bet), maxTo=s.bet+s.stack;
   const canRaise = maxTo>S.curBet && !s.noReraise && toCall<s.stack;
-  return { toCall, canCheck:toCall===0, maxTo, minTo:Math.min(S.curBet+S.minRaise,maxTo), canRaise };
+  return { toCall, canCheck:toCall===0, maxTo, minTo:Math.min(S.curBet+raiseInc(S),maxTo), canRaise };
 }
 
 export function applyAction(S,i,a,amt){
@@ -190,7 +193,7 @@ export function applyAction(S,i,a,amt){
     if(!o.canRaise) to=Math.min(S.curBet,o.maxTo);               // can't raise: shove becomes a call
     if(to<=S.curBet){ if(toCall>0) call(); else s.last='Check'; }
     else {
-      const inc=to-S.curBet, full=inc>=S.minRaise, wasBet=S.curBet===0;
+      const inc=to-S.curBet, full=inc>=raiseInc(S), wasBet=S.curBet===0;
       put(s,to-s.bet); S.curBet=to;
       if(full){ S.minRaise=inc; for(const x of S.seats) if(x) x.noReraise=false; }
       // everyone else must respond; after an incomplete all-in raise, those who already acted may only call or fold

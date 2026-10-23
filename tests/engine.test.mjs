@@ -112,7 +112,10 @@ for(let game = 0; game < 3000; game++){
       const res = E.applyAction(S, i, a, amt);
       ok(res, `legal action ${a} applied (toCall ${toCall}, stack ${s.stack})`);
       actions++;
-      if(a === 'raise' && res && S.curBet > curBefore && !s.allIn) ok(S.curBet - curBefore >= minRBefore, 'full raise respects min raise');
+      if(a === 'raise' && res && S.curBet > curBefore && !s.allIn){
+        ok(S.curBet - curBefore >= minRBefore, 'full raise respects min raise');
+        ok(curBefore === 0 ? S.curBet >= S.bb : S.curBet >= 2*curBefore, `raise at least doubles the bet (${curBefore} -> ${S.curBet})`);
+      }
       ok(chips(S) === before, 'chips conserved after action');
       ok(S.seats.every(x => !x || x.stack >= 0), 'no negative stacks');
     }
@@ -141,6 +144,17 @@ for(let game = 0; game < 3000; game++){
 console.log(`${hands} hands, ${actions} actions, ${showdowns} showdowns, ${splits} split pots, ${sidepots} with side pots`);
 
 // ---------- targeted rules ----------
+{ // minimum raise is always 2x the current bet
+  const S = E.mkState({ sb: 5, bb: 10, buyIn: 1000, minBuy: 200, table: 'R' });
+  for(const i of [0, 1, 2]) S.seats[i] = E.mkSeat({ token: 't'+i, pid: 'p'+i, name: 'P'+i, av: '', stack: 1000 });
+  E.startHand(S);
+  ok(E.legalActions(S, S.toAct).minTo === 20, 'preflop min raise is to 20 (2x the 10 blind)');
+  E.applyAction(S, S.toAct, 'raise', 30);
+  ok(S.curBet === 30 && E.legalActions(S, S.toAct).minTo === 60, `after a raise to 30 the min re-raise is to 60 (got ${E.legalActions(S, S.toAct).minTo})`);
+  E.applyAction(S, S.toAct, 'raise', 45);
+  ok(S.curBet === 60, `a too-small raise is lifted to the 2x minimum (got ${S.curBet})`);
+}
+
 { // heads-up: dealer posts SB and acts first preflop, BB acts first after
   const S = E.mkState({ sb: 1, bb: 2, buyIn: 200, minBuy: 40, table: 'H' });
   S.seats[0] = E.mkSeat({ token: 'a', pid: 'a', name: 'A', av: '', stack: 200 });
