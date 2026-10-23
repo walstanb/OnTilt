@@ -1148,16 +1148,16 @@ function historySheet(){
     : '<p>No hands played yet.</p>';
   sheet('Hand history', html, [], 'tall');
 }
-// Card designs: a per-device look. Each deck is a CSS class that sets the card colour variables
-// (see "card decks" in css/features.css); previews carry their own class so they show their deck.
-const DECKS=[['classic','Classic'],['four','Four-color'],['night','Night'],['mint','Mint'],['jumbo','Jumbo']];
-let deck=LS.get('ot-deck','classic'); if(!DECKS.some(d=>d[0]===deck)) deck='classic';
+// Card back designs: a per-device look (card faces always stay classic). Each design is a CSS class
+// that sets the back's variables (see "card backs" in css/features.css); previews carry their own class.
+const DECKS=[['stripes','Stripes'],['mint','Mint'],['grid','Grid'],['dots','Dots'],['logo','Logo']];
+let deck=LS.get('ot-deck','stripes'); if(!DECKS.some(d=>d[0]===deck)) deck='stripes';
 const applyDeck=()=>{ for(const [d] of DECKS) document.documentElement.classList.toggle('dk-'+d, d===deck); };
 applyDeck();
 function settingsSheet(){
   const previews=DECKS.map(([id,name])=>`<button class="deckopt dk-${id} ${id===deck?'sel':''}" data-deck="${id}" aria-pressed="${id===deck}">
-      <span class="dkc">${['Ad','Kc'].map(c=>cardHTML(c,'mini')).join('')}</span><span class="dkn">${name}</span></button>`).join('');
-  const bg=sheet('Settings', `<div class="set-h">Card design</div><div class="decks">${previews}</div><div class="set-h">Sound & vibration</div>`, [
+      <span class="dkc">${cardHTML('back','mini')}</span><span class="dkn">${name}</span></button>`).join('');
+  const bg=sheet('Settings', `<div class="set-h">Card backs</div><div class="decks">${previews}</div><div class="set-h">Sound & vibration</div>`, [
     {label:`Sound: ${fxPrefs.sound?'on':'off'}`, fn:()=>{ fxPrefs.sound=!fxPrefs.sound; play('chip'); settingsSheet(); }},
     {label:`Vibration: ${fxPrefs.vibe?'on':'off'}`, fn:()=>{ fxPrefs.vibe=!fxPrefs.vibe; play('chip'); settingsSheet(); }},
   ]);
