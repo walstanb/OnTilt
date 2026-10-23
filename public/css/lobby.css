@@ -1,5 +1,7 @@
 /* ---------- lobby ---------- */
-.lobby{display:flex;flex-direction:column;height:100%}
+.lobby{display:flex;flex-direction:column;min-height:100%;flex:none}
+/* the lobby can outgrow short phones (saved tables, tournament options), so #app scrolls here */
+#app.in-lobby{overflow-y:auto;overscroll-behavior:contain}
 .panel{margin:0 -16px;padding:4px 16px 28px;background:linear-gradient(#2c2d30,#1b1b1e);border-radius:0 0 36px 36px;text-align:center;flex:none}
 .panel .lbl{font-size:clamp(17px,4.8cqw,21px);margin-top:28px;color:#e9e9ea}
 .panel .lbl.g{color:var(--mint)}
