@@ -1219,7 +1219,7 @@ app.addEventListener('click', e=>{
     case 'standings': standingsSheet(); break;
     case 'retry': location.reload(); break;
     case 'menu': {
-      const btns=[{label:'Invite friends',cls:'primary',fn:shareInvite},{label:'Show QR code',fn:qrSheet},{label:'Hand history',fn:historySheet},{label:'Hand rankings',fn:rankingsSheet}];
+      const btns=[{label:'Invite friends',cls:'primary',fn:shareInvite},{label:'Show QR code',fn:qrSheet},{label:'Hand history',fn:historySheet}];
       btns.push(v?.tour ? {label:'Standings',fn:standingsSheet} : {label:'Ledger',fn:ledgerSheet});
       btns.push({label:'Settings',fn:settingsSheet});
       if(v && v.mySeat>=0 && !v.tour){ const out=v.seats[v.mySeat].sittingOut; btns.push({label:out?'I’m back':'Sit out next hand',fn:()=>send({t:'sitout',on:!out})}); }
