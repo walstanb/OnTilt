@@ -77,27 +77,25 @@ const EMOTE_SOUNDS = {
 const EMOTE_BUZZ = { '👋': [8, 60, 8], '👏': [6, 60, 6, 80, 6, 60, 6], '😆': [8, 50, 8, 50, 8], '😫': 30, '😠': [40, 30, 40], '🥳': [10, 30, 10, 30, 30] };
 const BUZZ = { turn: [20, 50, 20], win: 40, allin: 25, fold: 8, check: 6, chip: 6, chips: 8, emote: 8, bust: 30, level: 15, tick: 6, flip: 8 };
 
-// iPhone: no browser there supports navigator.vibrate (they all use Apple's WebKit). Since iOS 18,
-// toggling a switch-style checkbox gives a light system haptic, so we tap a hidden one instead.
-// One tap per pulse in the pattern; durations can't be controlled.
-let tapper = null;
+// iPhone: no browser there supports navigator.vibrate (Chrome, Safari, Firefox all use Apple's WebKit).
+// Since iOS 18, toggling a switch-style checkbox plays a light system haptic, so we click a hidden one.
+// iOS only plays it inside a user gesture, so the first tap must run synchronously in the tap/click
+// handler; taps for events nobody touched (e.g. "your turn" from the network) usually stay silent.
 function iosTap(){
-  if(!tapper){
-    tapper = document.createElement('label');
-    tapper.setAttribute('aria-hidden', 'true');
-    tapper.style.cssText = 'position:fixed;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none;left:-9px;top:-9px';
-    const input = document.createElement('input'); input.type = 'checkbox'; input.setAttribute('switch', ''); input.tabIndex = -1;
-    tapper.appendChild(input); document.body.appendChild(tapper);
-  }
-  tapper.click();
+  const label = document.createElement('label'), input = document.createElement('input');
+  label.setAttribute('aria-hidden', 'true'); label.style.display = 'none';
+  input.type = 'checkbox'; input.setAttribute('switch', '');
+  label.appendChild(input); document.head.appendChild(label);
+  label.click(); label.remove();
 }
 const canVibrate = typeof navigator.vibrate === 'function';
 export function buzz(pattern){
   if(!prefs.vibe || !pattern) return;
   if(canVibrate){ navigator.vibrate(pattern); return; }
-  const pulses = Array.isArray(pattern) ? pattern.filter((_, i) => i % 2 === 0) : [pattern];
+  const list = Array.isArray(pattern) ? pattern : [pattern];
+  iosTap();                                         // first pulse now, while the gesture is active
   let at = 0;
-  pulses.forEach((ms, k) => { setTimeout(iosTap, at); at += ms + (Array.isArray(pattern) ? (pattern[k*2 + 1] || 0) : 0) + 60; });
+  for(let k = 2; k < list.length; k += 2){ at += list[k-2] + (list[k-1] || 0) + 40; setTimeout(iosTap, at); }
 }
 
 // `arg` picks a variant: the emoji for 'emote'.

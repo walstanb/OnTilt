@@ -11,7 +11,7 @@ import { MAXS, rnd, bestOf, handName, mkState, mkSeat, potTotal, startHand, endR
   isActive, removeSeat, blindsFor, tourLevelUp, tourSettle } from './engine.js';
 import { morph } from './morph.js';
 import { app, short, esc, fmtCode, STAKES, AVATARS, EMOTES, BOTS, ICON, cardHTML, toast, LS, randomName, raiseStops } from './ui-helpers.js';
-import { play, fx as fxPrefs } from './sound.js';
+import { play, buzz, fx as fxPrefs } from './sound.js';
 import { qrSVG } from './qr.js';
 import { makeOffer, answerOffer, acceptAnswer, opened } from './lan.js';
 import { startScanner } from './scan.js';
@@ -496,7 +496,8 @@ function renderTable(prev){
     box=`<div class="hand"><div class="hn">Open seat</div><button class="plus" data-k="plus" data-act="sit" data-i="${anchor}" ${seated?'disabled':''}></button><div class="hn"></div></div>`;
   }
   const holeEl=`<div class="hole ${mine&&mine.folded?'folded':''} ${holeCards?'mine':''}" id="hole">${hole}</div>`;
-  const meRow=`<div class="me">${holeEl}${box}</div>`;
+  const swipeFold = myTurn && mine && !mine.folded && !mine.allIn && holeCards;
+  const meRow=`<div class="me">${holeEl}${box}${swipeFold&&!deskMQ.matches?'<div class="hint">Swipe up to fold</div>':''}</div>`;
 
   const banner = hostLost ? `<div class="banner">Lost connection to host… waiting</div>` : '';
   const emo = ui.emoteOpen ? `<div class="shade" data-act="emoteClose"></div><div class="emobar">${EMOTES.map(e=>`<button data-act="em" data-v="${e}">${e}</button>`).join('')}</div>` : '';
@@ -525,7 +526,7 @@ function renderTable(prev){
   runFx(fx, prev, v);
 
   bindRaise();
-  bindHole(myTurn && mine && v.curBet>mine.bet);
+  bindHole(!!swipeFold);
 }
 
 // Raise ruler: drag or tap to snap between stops; updates in place so the drag isn't re-rendered under the finger.
@@ -567,20 +568,39 @@ function seatHTML(v,i,seated,maxStack){
     <div class="under">${under}</div></div>`;
 }
 
-// Your cards: tap to hide/peek, swipe up to fold (when facing a bet).
+// Your cards: tap to hide/peek, swipe up to fold (any time it's your turn).
+// Drag state lives outside the element so a re-render mid-swipe doesn't lose the gesture.
+const drag={ on:false, y0:0, x0:0, dy:0, t0:0, moved:false };
+const FOLD_PX=60;
+function dragLook(h){
+  h.classList.toggle('drag', drag.on);
+  h.style.transform = drag.on && drag.dy ? `translateY(${-drag.dy}px) rotate(${-drag.dy/40}deg)` : '';
+  h.style.opacity = drag.on && drag.dy ? String(1-Math.min(drag.dy/180,.7)) : '';
+}
 function bindHole(canFold){
-  const h=document.getElementById('hole'); if(!h || !h.classList.contains('mine')) { if(h){ h.onpointerdown=null; } return; }
-  let y0=null, x0=0, dy=0, t0=0, moved=false;
-  h.style.touchAction='none';
-  h.onpointerdown=e=>{ y0=e.clientY; x0=e.clientX; dy=0; t0=performance.now(); moved=false; h.setPointerCapture(e.pointerId); h.classList.add('drag'); };
-  h.onpointermove=e=>{ if(y0==null) return; const up=y0-e.clientY;
-    if(Math.abs(up)>8 || Math.abs(e.clientX-x0)>8) moved=true;
-    if(!canFold) return;
-    dy=Math.max(0,up); h.style.transform=`translateY(${-dy}px) rotate(${-dy/40}deg)`; h.style.opacity=String(1-Math.min(dy/180,.7)); };
-  h.onpointerup=h.onpointercancel=e=>{ if(y0==null) return; y0=null; h.classList.remove('drag');
-    if(canFold && dy>70){ h.classList.add('flung'); play('fold'); send({t:'act',a:'fold'}); return; }
-    h.style.transform=''; h.style.opacity='';
-    if(e.type==='pointerup' && !moved && performance.now()-t0<450) toggleHide(); };
+  const h=document.getElementById('hole');
+  if(!h || !h.classList.contains('mine')){ if(h){ h.onpointerdown=h.onpointermove=h.onpointerup=h.onpointercancel=null; } drag.on=false; return; }
+  if(drag.on) dragLook(h);          // the re-render reset our inline styles; put the drag back
+  h.onpointerdown=e=>{
+    Object.assign(drag,{ on:true, y0:e.clientY, x0:e.clientX, dy:0, t0:performance.now(), moved:false });
+    try{ h.setPointerCapture(e.pointerId); }catch{}
+    dragLook(h);
+  };
+  h.onpointermove=e=>{
+    if(!drag.on) return;
+    const up=drag.y0-e.clientY;
+    if(Math.abs(up)>8 || Math.abs(e.clientX-drag.x0)>8) drag.moved=true;
+    // can fold: cards follow your finger; can't: a small rubber-band so the gesture still feels alive
+    drag.dy = canFold ? Math.max(0,up) : Math.min(18, Math.max(0,up)*.2);
+    dragLook(h);
+  };
+  h.onpointerup=h.onpointercancel=e=>{
+    if(!drag.on) return;
+    const { dy, moved, t0 }=drag; drag.on=false; drag.dy=0;
+    if(canFold && dy>FOLD_PX && e.type==='pointerup'){ h.classList.remove('drag'); h.classList.add('flung'); play('fold'); send({t:'act',a:'fold'}); return; }
+    dragLook(h);
+    if(e.type==='pointerup' && !moved && performance.now()-t0<450) toggleHide();
+  };
 }
 function toggleHide(){ ui.hide=!ui.hide; LS.set('ot-hide',ui.hide); play('flip'); render(); }
 
@@ -797,7 +817,7 @@ app.addEventListener('click', e=>{
     case 'raiseGo': ui.raiseOpen=false; play('chips'); send({t:'act',a:'raise',amt:ui.raiseTo}); break;
     case 'emote': ui.emoteOpen=true; render(); break;
     case 'emoteClose': ui.emoteOpen=false; render(); break;
-    case 'em': ui.emoteOpen=false; send({t:'emote',e:b.dataset.v}); render(); break;
+    case 'em': ui.emoteOpen=false; if(!isHost) buzz(8); send({t:'emote',e:b.dataset.v}); render(); break;   // guests feel it now; the sound comes with the host's echo
     case 'rebuy': play('chips'); send({t:'rebuy'}); break;
     case 'stand': send({t:'stand'}); break;
     case 'tstart': send({t:'tstart'}); break;
