@@ -42,6 +42,16 @@ eq(E.describe(E.bestOf('Ks Kh Kd 2c 9d 3c 4h'.split(' '))), 'Three of a Kind · 
 eq(E.describe(E.bestOf('Ah 2c 3d 4s 5h 9c Kd'.split(' '))), 'Straight · Five high', 'describe wheel');
 eq(E.describe(E.bestOf('Ks Kh Kd 2c 2d 3c 4h'.split(' '))), 'Full House · Kings full of 2s', 'describe boat');
 
+// ---------- odds ----------
+{
+  const pct = (h, b, o, n = 6000) => { const r = E.equity(h.split(' '), b ? b.split(' ') : [], o, n); return { win: r.win/n, tie: r.tie/n, cats: r.cats.map(c => c/n) }; };
+  const aa = pct('As Ah', '', 1); ok(aa.win > .82 && aa.win < .89, `AA vs 1 ≈ 85% (got ${aa.win})`);
+  const aa5 = pct('As Ah', '', 5); ok(aa5.win > .44 && aa5.win < .54, `AA vs 5 ≈ 49% (got ${aa5.win})`);
+  const nuts = pct('As Ks', 'Qs Js Ts 2d 3c', 3, 300); ok(nuts.win === 1, 'royal flush on the river always wins');
+  const fd = pct('Ah Kh', '2h 7h 9c', 0, 4000); ok(Math.abs(fd.cats[5] + fd.cats[8] - .35) < .03, `flush by the river from a flop draw ≈ 35% (got ${fd.cats[5]})`);
+  const c = pct('7c 2d', '', 2, 500); ok(Math.abs(c.cats.reduce((a, b) => a + b, 0) - 1) < 1e-9, 'final-hand odds sum to 1');
+}
+
 // ---------- deck ----------
 for(let t = 0; t < 200; t++){ const d = E.newDeck(); ok(d.length === 52 && new Set(d).size === 52, 'deck has 52 unique cards'); }
 

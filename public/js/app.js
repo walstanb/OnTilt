@@ -8,9 +8,10 @@
 
 import { TURN_MS, APP_ID, TRYSTERO_URL, RELAY_URLS, TURN_CREDENTIALS_URL, TURN_SERVERS, JOIN_HINT_MS } from './config.js';
 import { MAXS, rnd, bestOf, handName, mkState, mkSeat, potTotal, startHand, endRound, applyAction, botMove, fmt,
-  isActive, removeSeat, blindsFor, tourLevelUp, tourSettle, describe } from './engine.js';
+  isActive, removeSeat, blindsFor, tourLevelUp, tourSettle, describe, equity, HAND_NAMES } from './engine.js';
 import { morph } from './morph.js';
-import { app, short, esc, fmtCode, STAKES, AVATARS, EMOTES, BOTS, ICON, cardHTML, toast, LS, randomName, raiseStops } from './ui-helpers.js';
+import { AVATARS, avatarSVG, normAv } from './avatars.js';
+import { app, short, esc, fmtCode, STAKES, EMOTES, BOTS, ICON, cardHTML, toast, LS, randomName, raiseStops } from './ui-helpers.js';
 import { play, buzz, fx as fxPrefs } from './sound.js';
 import { qrSVG } from './qr.js';
 import { makeOffer, answerOffer, acceptAnswer, opened } from './lan.js';
@@ -19,6 +20,7 @@ import { startScanner } from './scan.js';
 // ------------------------------ profile ------------------------------
 const me = LS.get('pp-me', null) || { token: crypto.randomUUID?crypto.randomUUID():String(Math.random()).slice(2), name:'', av:AVATARS[0] };
 if(!me.name){ me.name=randomName(); me.av=AVATARS[rnd(AVATARS.length)]; }   // new players get a fun suggestion
+me.av=normAv(me.av);   // older versions saved emoji avatars
 const saveMe = () => LS.set('pp-me', me);
 saveMe();
 
@@ -27,7 +29,7 @@ let isHost=false, S=null, view=null, net=null, hostPid=null, hostLost=false, tab
 let joinIssue='';                // guest: '' | 'slow' | 'blocked' | 'offline' (why we haven't reached the host yet)
 const peers=new Map();           // host: pid -> {token,name,av}
 let timer=null, armedSeq=-1;
-const ui={ raiseOpen:false, raiseTo:0, emoteOpen:false, lastTurnKey:'', lastResultsKey:'', hide:LS.get('ot-hide',false), noteN:0, finishedShown:false };
+const ui={ odds:{ open:false, key:'', res:null, token:0 }, raiseOpen:false, raiseTo:0, emoteOpen:false, lastTurnKey:'', lastResultsKey:'', hide:LS.get('ot-hide',false), noteN:0, finishedShown:false };
 const myPid = () => net ? net.selfId : 'local';
 const TOUR_STACK_BB = 75;        // tournament starting stack, in starting big blinds
 
@@ -136,7 +138,7 @@ function handle(d, pid){
   const host = pid===myPid();
   switch(d.t){
     case 'hello': {
-      const name=String(d.name||'player').slice(0,14), av=String(d.av||'🙂').slice(0,8), token=String(d.token||'').slice(0,64);
+      const name=String(d.name||'player').slice(0,14), av=normAv(String(d.av||'').slice(0,8)), token=String(d.token||'').slice(0,64);
       peers.set(pid,{token,name,av});
       for(const s of S.seats) if(s&&!s.bot&&s.token===token){ s.pid=pid; s.connected=true; s.name=name; s.av=av; }
       if(token && S.ledger[token]) S.ledger[token].name=name;
@@ -164,7 +166,7 @@ function handle(d, pid){
       s.show=true; if(S.results) logShown(i);
       S.seq++; break; }
     case 'addbot': { if(!host) return; const k=d.seat|0; if(k<0||k>=MAXS||S.seats[k]||tourOn()&&S.tour.started) return;
-      const used=new Set(S.seats.filter(Boolean).map(s=>s.name)); const b=BOTS.find(b=>!used.has(b[0]))||['bot'+k,'🤖'];
+      const used=new Set(S.seats.filter(Boolean).map(s=>s.name)); const b=BOTS.find(b=>!used.has(b[0]))||['bot'+k,'a15'];
       S.seats[k]=mkSeat({token:'bot-'+k+'-'+Date.now(),pid:null,name:b[0],av:b[1],stack:tourOn()?S.tour.stack:S.buyIn,bot:true}); S.seq++; break; }
     case 'kick': { if(!host) return; const k=d.seat|0, s=S.seats[k]; if(!s||s.token===me.token) return; dropSeat(k); S.seq++; break; }
     case 'tstart': { if(!host||!tourOn()||S.tour.started) return;
@@ -331,7 +333,7 @@ const ago = t => { if(!t) return ''; const m=Math.round((Date.now()-t)/60000); r
 
 function renderLobby(){
   const [sb,bb]=STAKES[lobby.stake];
-  const avs=AVATARS.map(a=>`<button data-act="av" data-v="${a}" class="${a===me.av?'sel':''}">${a}</button>`).join('');
+  const avs=AVATARS.map(a=>`<button data-act="av" data-v="${a}" class="${a===me.av?'sel':''}" aria-label="Avatar ${a.slice(1)}">${avatarSVG(a)}</button>`).join('');
   const prof=`<div class="prof"><div class="nmrow"><input id="nm" placeholder="Your name" maxlength="14" autocomplete="off" value="${esc(me.name)}">
       <button class="dice" data-act="reroll" aria-label="Random name">${ICON.dice}</button></div><div class="avs">${avs}</div></div>`;
   if(lobby.mode==='create'){
@@ -419,6 +421,7 @@ function renderTable(prev){
       : `<div class="spin"></div>Connecting to the table…<br><span class="sub">Table ${fmtCode(tableCode)}</span>`}</div></div>`);
     return;
   }
+  syncOdds(v);
   const seated=v.mySeat>=0, anchor=seated?v.mySeat:0, mine=seated?v.seats[v.mySeat]:null;
   const active=isActive(v);
   const R=v.results;
@@ -516,7 +519,8 @@ function renderTable(prev){
   if(a){
     box=`<div class="hand ${handTurn?'turn':''}" ${handTurn&&v.turnLeft?'data-timer':''} data-seat-av="${anchor}">
       <div class="hn">${esc(hn)}</div>
-      <div class="av">${a.av}${v.dealer===anchor&&v.handNo?'<b class="d">D</b>':''}</div>
+      ${seated?`<button class="av" data-act="odds" aria-label="Your odds">`:'<div class="av">'}${avatarSVG(a.av)}${v.dealer===anchor&&v.handNo?'<b class="d">D</b>':''}${seated?'</button>':'</div>'}
+      ${seated && ui.odds.open ? oddsHTML() : ''}
       <div class="st">${fmt(a.stack)}${chipViz(a.stack,maxStack)}</div>
       ${seated?`<button class="smile" data-act="emote" aria-label="Reactions">${ICON.smile}</button>`:''}</div>`;
   } else {
@@ -574,6 +578,42 @@ function bindRaise(){
   rr.onpointerup=rr.onpointercancel=()=>{ rr.onpointermove=null; };
 }
 
+// ------------------------------ odds ------------------------------
+// Tap your avatar: Monte Carlo over the unseen turn/river and the hands of everyone still in.
+// Runs in small chunks so the table stays smooth, refreshing as the numbers settle.
+const ODDS_ITERS=4000, ODDS_CHUNK=250;
+function oddsKey(v){
+  const me=v.seats[v.mySeat], opp=v.seats.filter((s,i)=>s&&i!==v.mySeat&&s.inHand&&!s.folded).length;
+  return [v.handNo, me.cards.join(''), v.board.join(''), opp].join('|');
+}
+function syncOdds(v){
+  const me=v && v.mySeat>=0 && v.seats[v.mySeat];
+  if(!ui.odds.open) return;
+  if(!me || !me.cards?.length || me.folded || !me.inHand || !isActive(v)){ ui.odds.open=false; return; }
+  const key=oddsKey(v); if(ui.odds.key===key) return;
+  const token=++ui.odds.token, hole=[...me.cards], board=[...v.board], opp=+key.split('|')[3];
+  Object.assign(ui.odds, { key, res:null });
+  const acc={ iters:0, win:0, tie:0, cats:Array(9).fill(0), opp };
+  const step=()=>{
+    if(token!==ui.odds.token || !ui.odds.open) return;
+    const r=equity(hole, board, opp, ODDS_CHUNK);
+    acc.iters+=r.iters; acc.win+=r.win; acc.tie+=r.tie; r.cats.forEach((c,k)=>acc.cats[k]+=c);
+    if(acc.iters%1000===0 || acc.iters>=ODDS_ITERS){ ui.odds.res={...acc, cats:[...acc.cats]}; render(); }
+    if(acc.iters<ODDS_ITERS) setTimeout(step, 0);
+  };
+  setTimeout(step, 0);
+}
+function oddsHTML(){
+  const r=ui.odds.res;
+  if(!r) return `<div class="odds" data-act="odds"><div class="spin"></div></div>`;
+  const pct=x=>Math.round(x/r.iters*100);
+  const top=r.cats.map((c,k)=>[k,c]).filter(([,c])=>c/r.iters>=.01).sort((a,b)=>b[1]-a[1]).slice(0,3);
+  return `<div class="odds" data-act="odds">
+    <b>${pct(r.win)}%</b><span class="vs">to win${r.opp?` vs ${r.opp} player${r.opp>1?'s':''}`:''}${pct(r.tie)>=1?` · split ${pct(r.tie)}%`:''}</span>
+    <ul>${top.map(([k,c])=>`<li><span>${HAND_NAMES[k]}</span><i>${pct(c)}%</i></li>`).join('')}</ul>
+  </div>`;
+}
+
 function seatHTML(v,i,seated,maxStack){
   const s=v.seats[i], R=v.results, active=isActive(v);
   const canSit = !(v.tour && v.tour.started) && (!seated || v.isHost);
@@ -593,7 +633,7 @@ function seatHTML(v,i,seated,maxStack){
   const turn = v.toAct===i && active;
   return `<div class="seat ${dim?'dim':''} ${turn?'turn':''}">
     <div class="pie-wrap">${turn?'<div class="pie" data-timer></div>':''}</div>
-    <button class="av" data-k="av${esc(s.name)}" data-act="seatTap" data-i="${i}" data-seat-av="${i}">${s.av}${v.dealer===i&&v.handNo?'<b class="d">D</b>':''}</button>
+    <button class="av" data-k="av${esc(s.name)}" data-act="seatTap" data-i="${i}" data-seat-av="${i}">${avatarSVG(s.av)}${v.dealer===i&&v.handNo?'<b class="d">D</b>':''}</button>
     <div class="nm">${esc(s.name)}</div><div class="st">${fmt(s.stack)}${chipViz(s.stack,maxStack)}</div>
     <div class="under">${under}</div></div>`;
 }
@@ -793,7 +833,7 @@ function standingsSheet(){
   const medal=p=>['🥇','🥈','🥉'][p-1]||`#${p}`;
   const rows = T.finished ? T.places : [...alive.map((s,k)=>({name:s.name,av:s.av,place:k+1,stack:s.stack})), ...T.places];
   const html=`<table class="ledger"><tr><th>Place</th><th>Player</th><th>${T.finished?'':'Chips'}</th></tr>
-    ${rows.map(p=>`<tr><td>${T.finished||p.stack==null?medal(p.place):p.place}</td><td>${p.av||''} ${esc(p.name)}</td><td>${p.stack!=null?fmt(p.stack):p.stack===undefined&&!T.finished?'out':''}</td></tr>`).join('')||'<tr><td colspan=3>No players yet</td></tr>'}</table>`;
+    ${rows.map(p=>`<tr><td>${T.finished||p.stack==null?medal(p.place):p.place}</td><td>${avatarSVG(p.av)}${esc(p.name)}</td><td>${p.stack!=null?fmt(p.stack):p.stack===undefined&&!T.finished?'out':''}</td></tr>`).join('')||'<tr><td colspan=3>No players yet</td></tr>'}</table>`;
   const w=T.finished && T.places.find(p=>p.place===1);
   sheet(w?`🏆 ${w.name} wins!`:'Standings', html, view.isHost&&T.finished?[{label:'Run it back',cls:'primary',fn:()=>send({t:'treset'})}]:[]);
 }
@@ -850,6 +890,10 @@ app.addEventListener('click', e=>{
     case 'em': ui.emoteOpen=false; if(!isHost) buzz(8); send({t:'emote',e:b.dataset.v}); render(); break;   // guests feel it now; the sound comes with the host's echo
     case 'rebuy': play('chips'); send({t:'rebuy'}); break;
     case 'show': play('flip'); send({t:'show'}); break;
+    case 'odds': {
+      const mine=v?.seats[v.mySeat];
+      if(!ui.odds.open && !(mine?.cards?.length && mine.inHand && !mine.folded && isActive(v))){ toast('Your odds appear here once you’re dealt into a hand'); break; }
+      ui.odds.open=!ui.odds.open; play('tick'); render(); break; }
     case 'stand': send({t:'stand'}); break;
     case 'tstart': send({t:'tstart'}); break;
     case 'treset': send({t:'treset'}); break;

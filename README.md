@@ -22,6 +22,7 @@ public/              # everything served by GitHub Pages
     config.js        # app ID, relays, TURN servers, shot clock
     sound.js         # synthesized sounds + vibration (no audio files)
     qr.js            # QR codes for invites (bundled qrcode-generator in vendor/)
+    avatars.js       # minimal geometric avatars (SVG), keyed by short ids
     lan.js           # offline Wi-Fi connections: WebRTC with the handshake carried in QR codes
     scan.js          # camera QR scanner (BarcodeDetector, or bundled jsQR)
     morph.js         # tiny DOM patcher so re-renders keep elements (and their transitions)
@@ -64,6 +65,7 @@ Every push to `main` runs `.github/workflows/deploy.yml`, which syntax-checks th
 - **Fold:** tap **Fold**, or swipe your cards up.
 - **Showdown:** the table says who won and with what ("flint wins with Two Pair · Queens & 5s"); the five winning cards stay bright and every revealed hand is labelled.
 - **Show your cards:** after folding (or winning uncalled), tap **Show cards** and everyone sees them when the hand ends.
+- **Your odds:** tap your own avatar during a hand. OnTilt simulates thousands of possible turns/rivers and opponent hands and shows your chance to win plus your most likely final hands; it updates as cards come out.
 - **Hide your cards:** tap them (or press `H`). Tap again to peek.
 - **Tournament:** pick Tournament in the lobby, choose a speed (blinds up every 5, 10 or 15 minutes), seat players, then tap **Start tournament**. No rebuys or late entries; last player standing wins.
 - **Invite in person:** `•••` > **Show QR code**, or the QR button in the lobby.

@@ -265,3 +265,26 @@ export function botMove(S,i){
   return ['fold'];
 }
 export function fmt(n){ return Math.round(n).toLocaleString('en-US'); }
+
+// ------------------------------ odds ------------------------------
+// Monte Carlo odds for one player: deal the missing board cards and each opponent's hole cards
+// at random from the cards this player can't see, many times. Returns raw counts so callers
+// can run it in small chunks and add the results up.
+export function equity(hole, board, opponents, iters=1000, rand=Math.random){
+  const known=new Set([...hole,...board]), deck=[];
+  for(const s of SUITS) for(const r of RANKS){ const c=r+s; if(!known.has(c)) deck.push(c); }
+  const need=5-board.length, take=need+opponents*2;
+  let win=0, tie=0; const cats=Array(9).fill(0);
+  for(let t=0;t<iters;t++){
+    for(let k=0;k<take;k++){ const j=k+Math.floor(rand()*(deck.length-k)); const x=deck[k]; deck[k]=deck[j]; deck[j]=x; }
+    const full=need ? board.concat(deck.slice(0,need)) : board;
+    const mine=bestOf(hole.concat(full)); cats[mine[0]]++;
+    let lost=false, tied=false;
+    for(let o=0;o<opponents && !lost;o++){
+      const c=cmp(mine, bestOf([deck[need+o*2], deck[need+o*2+1], ...full]));
+      if(c<0) lost=true; else if(c===0) tied=true;
+    }
+    if(!lost){ if(tied) tie++; else win++; }
+  }
+  return { iters, win, tie, cats };
+}

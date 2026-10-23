@@ -17,8 +17,8 @@
 .prof input:focus{border-color:#3a3a40}
 .avs{display:flex;gap:6px;overflow-x:auto;margin:14px -16px 0;padding:4px 16px;scrollbar-width:none}
 .avs::-webkit-scrollbar{display:none}
-.avs button{font-size:34px;line-height:1;padding:8px;border-radius:18px;border:2px solid transparent;flex:none}
-.avs button.sel{border-color:#fff;background:var(--fill)}
+.avs button{font-size:34px;line-height:1;padding:6px;border-radius:50%;border:2px solid transparent;flex:none}
+.avs button.sel{border-color:var(--mint)}
 .lbtn{height:clamp(56px,15cqw,66px);border-radius:999px;width:100%;font-size:clamp(17px,4.8cqw,21px);letter-spacing:.04em;font-weight:500;flex:none;
   display:flex;align-items:center;justify-content:center;gap:12px;position:relative}
 .lbtn.out{border:2px solid #232a22;color:var(--mint)}
