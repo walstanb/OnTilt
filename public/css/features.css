@@ -21,7 +21,6 @@
 .dice:active{transform:rotate(90deg) scale(.95);color:#fff}
 .saved{margin-top:22px;flex:none}
 .saved-h{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--mut);letter-spacing:.04em;text-transform:uppercase;margin-bottom:8px}
-.saved-h button{font-size:13px;color:var(--mint);text-transform:none;letter-spacing:0}
 .saved .none{margin:0;font-size:14px;color:#55555b;line-height:1.4}
 .srow{display:flex;align-items:stretch;gap:6px;margin-top:6px;animation:slide .25s var(--out,ease) both}
 .sgo{flex:1;min-width:0;text-align:left;padding:10px 14px;border-radius:16px;background:#121214;border:1px solid #222226;display:flex;flex-direction:column;gap:3px;transition:background .15s}

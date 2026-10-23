@@ -324,7 +324,7 @@ function renderLobby(){
   if(lobby.mode==='create'){
     const tour=lobby.game==='tourney';
     const saved=savedTables();
-    const savedHTML = `<div class="saved"><div class="saved-h"><span>Your tables</span><button data-act="import">Open save file</button></div>
+    const savedHTML = `<div class="saved"><div class="saved-h"><span>Your tables</span></div>
       ${saved.map(t=>`<div class="srow"><button class="sgo" data-act="resume" data-v="${t.code}">
           <b>${t.mode==='tourney'?'Tournament':'Cash'} · ${fmt(t.sb)}/${fmt(t.bb)}</b>
           <span>${esc(t.players.slice(0,4).join(', ')||'No players')}${t.players.length>4?'…':''} · ${t.hands} hands · ${ago(t.at)}${t.done?' · finished':''}</span></button>
@@ -739,34 +739,6 @@ function settingsSheet(){
   ]);
 }
 
-// ------------------------------ save / load ------------------------------
-function exportSave(){
-  const data={ app:'ontilt', v:1, code:tableCode, savedAt:Date.now(), state:S };
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob([JSON.stringify(data)],{type:'application/json'}));
-  a.download=`ontilt-${tableCode}-${new Date().toISOString().slice(0,10)}.json`;
-  document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
-  toast('Game saved to a file');
-}
-function validSave(d){
-  const s=d?.state;
-  return d && d.app==='ontilt' && /^\d{7}$/.test(String(d.code)) && s && Array.isArray(s.seats) && s.seats.length===MAXS &&
-    s.seats.every(x=>x===null || (typeof x==='object' && Number.isFinite(x.stack) && x.stack>=0 && typeof x.name==='string')) &&
-    Number.isFinite(s.sb) && Number.isFinite(s.bb) && s.bb>0;
-}
-function importSave(){
-  const inp=document.createElement('input'); inp.type='file'; inp.accept='application/json,.json';
-  inp.onchange=async()=>{
-    try{
-      const d=JSON.parse(await inp.files[0].text());
-      if(!validSave(d)) throw new Error('bad file');
-      LS.set('pp-host-'+d.code, d.state);
-      location.hash=d.code;   // reloads into the resumed table
-    }catch{ toast('That isn’t an OnTilt save file'); }
-  };
-  inp.click();
-}
-
 // ------------------------------ input ------------------------------
 app.addEventListener('click', e=>{
   const b=e.target.closest('[data-act]'); if(!b || b.disabled) return;
@@ -781,7 +753,6 @@ app.addEventListener('click', e=>{
     case 'resume': location.hash=b.dataset.v; break;
     case 'forget': sheet('Delete saved table?', 'This removes it from this device. Players can’t rejoin it afterwards.',
       [{label:'Delete',cls:'danger',fn:()=>{ LS.del('pp-host-'+b.dataset.v); renderLobby(); }}]); break;
-    case 'import': importSave(); break;
     case 'start': readName(); if(!me.name){ toast('Enter your name first'); document.getElementById('nm')?.focus(); return; } startHosting(); break;
     case 'join': readName(); if(!me.name){ toast('Enter your name first'); document.getElementById('nm')?.focus(); return; } startJoining(); break;
     case 'home': goHome(); break;
@@ -814,13 +785,12 @@ app.addEventListener('click', e=>{
       const btns=[{label:'Invite friends',cls:'primary',fn:shareInvite},{label:'Show QR code',fn:qrSheet},{label:'Hand history',fn:historySheet}];
       btns.push(v?.tour ? {label:'Standings',fn:standingsSheet} : {label:'Ledger',fn:ledgerSheet});
       btns.push({label:'Sound & vibration',fn:settingsSheet});
-      if(isHost) btns.push({label:'Save game to a file',fn:exportSave});
       if(v && v.mySeat>=0) btns.push({label:v.tour?.started?'Leave tournament':'Stand up',fn:()=>send({t:'stand'})});
       if(isHost) btns.push({label:'Close table for everyone',cls:'danger',fn:endTable});
       const what = v?.tour ? `Tournament · starting stack ${fmt(v.tour.stack)}` : v ? `Blinds ${v.sb}/${v.bb} · buy-in ${short(v.buyIn)}` : '';
       sheet(`Table ${fmtCode(tableCode)}`, `<p>${what}${isHost?' · you are hosting. The table saves automatically on this device.':''}</p>`, btns); break; }
     case 'leave':
-      if(isHost) sheet('Leave table?','You’re the host. The game pauses for everyone while you’re away. It’s saved on this device: open the same link or pick it from “Your tables” to resume.',[{label:'Leave',cls:'danger',fn:goHome},{label:'Save to a file, then leave',fn:()=>{ exportSave(); setTimeout(goHome,400); }}]);
+      if(isHost) sheet('Leave table?','You’re the host. The game pauses for everyone while you’re away. It’s saved on this device: open the same link or pick it from “Your tables” to resume.',[{label:'Leave',cls:'danger',fn:goHome}]);
       else sheet('Leave table?','Your chips stay at the table until you stand up.',[{label:'Stand up and leave',cls:'danger',fn:()=>{ send({t:'stand'}); setTimeout(goHome,250); }},{label:'Just leave',fn:goHome}]);
       break;
   }

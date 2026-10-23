@@ -65,7 +65,7 @@ Every push to `main` runs `.github/workflows/deploy.yml`, which syntax-checks th
 - **Hide your cards:** tap them (or press `H`). Tap again to peek.
 - **Tournament:** pick Tournament in the lobby, choose a speed (blinds up every 5, 10 or 15 minutes), seat players, then tap **Start tournament**. No rebuys or late entries; last player standing wins.
 - **Invite in person:** `•••` > **Show QR code**, or the QR button in the lobby.
-- **Save & resume:** tables you host save automatically on your device and appear under **Your tables** in the lobby. `•••` > **Save game to a file** lets you move a game to another device (**Open save file** in the lobby).
+- **Save & resume:** tables you host save automatically on your device and appear under **Your tables** in the lobby.
 - **No internet (same Wi-Fi):** everyone opens OnTilt once while online so it's saved on their phone. Later, without internet:
   1. Host: `•••` > **Show QR code**. With no internet it switches to nearby mode by itself (or tap **No internet? Pair nearby**).
   2. Guest: scan the code with the phone camera. Their screen shows a reply code.
