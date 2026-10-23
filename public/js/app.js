@@ -896,7 +896,7 @@ function seatHTML(v,i,seated,maxStack){
   const turn = v.toAct===i && active;
   return `<div class="seat ${dim?'dim':''} ${turn?'turn':''}">
     <div class="pie-wrap">${turn?'<div class="pie" data-timer></div>':''}</div>
-    <button class="av" data-k="av${esc(s.name)}" data-act="seatTap" data-i="${i}" data-seat-av="${i}" aria-label="${esc(s.name)}, ${fmt(s.stack)} chips${s.bot?', bot':''}${!s.connected?', disconnected':''}">${avatarSVG(s.av)}${!R && s.inHand && !s.folded && s.cards?.[0]==='back' ? `<span class="fan" aria-hidden="true">${cardHTML('back','mini')}${cardHTML('back','mini')}</span>` : ''}${v.dealer===i&&v.handNo?'<b class="d">D</b>':''}</button>
+    <button class="av" data-k="av${esc(s.name)}" data-act="seatTap" data-i="${i}" data-seat-av="${i}" aria-label="${esc(s.name)}, ${fmt(s.stack)} chips${s.bot?', bot':''}${!s.connected?', disconnected':''}">${avatarSVG(s.av)}${v.dealer===i&&v.handNo?'<b class="d">D</b>':''}</button>
     <div class="nm">${esc(s.name)}</div><div class="st">${amt(s.stack)}</div>
     <div class="under">${under}</div></div>`;
 }
@@ -1150,7 +1150,7 @@ function historySheet(){
 }
 // Card back designs: a per-device look (card faces always stay classic). Each design is a CSS class
 // that sets the back's variables (see "card backs" in css/features.css); previews carry their own class.
-const DECKS=[['red','Classic Red'],['navy','Midnight'],['mint','Aurora'],['gold','Sunset'],['paper','Mono'],['stripes','Carbon']];
+const DECKS=[['red','Classic Red'],['navy','Navy'],['mint','Mint'],['gold','Gold'],['paper','Paper'],['stripes','Charcoal']];
 let deck=LS.get('ot-deck','red'); if(!DECKS.some(d=>d[0]===deck)) deck='red';
 const applyDeck=()=>{ for(const [d] of DECKS) document.documentElement.classList.toggle('dk-'+d, d===deck); };
 applyDeck();

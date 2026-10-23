@@ -150,35 +150,25 @@ body.zoomed .float{font-size:calc(46px * var(--z))}
 .btn.pre.sel{color:var(--mint);border-style:solid;border-color:var(--mint);background:#0e1712}
 
 /* ---------- card backs: each design sets these variables; faces always stay classic ---------- */
-/* --cbk card fill, --cbb edge, --cbp pattern inside the frame, --cbf frame line, --cbe centre emblem */
-:root,.dk-red{ --cbk:linear-gradient(160deg,#e3454e 0%,#a8141f 55%,#760d15 100%); --cbb:#b8202b; --cbf:#ffffff73;
-  --cbp:repeating-linear-gradient(135deg,#ffffff1c 0 1.1cqw,transparent 1.1cqw 5.5cqw); --cbe:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%23ffffffd9' stroke-width='1.4'/%3E%3Cpath d='M16 8.6c-3 3-5.7 4.8-5.7 7.5a3 3 0 0 0 5 2.2l-1.1 3.4h3.6l-1.1-3.4a3 3 0 0 0 5-2.2c0-2.7-2.7-4.5-5.7-7.5z' fill='%23ffffffd9'/%3E%3C/svg%3E"); }
-.dk-navy{ --cbk:radial-gradient(120% 90% at 25% 15%,#4257d8 0%,#1c2670 55%,#0c1135 100%); --cbb:#2a3796; --cbf:#ffffff4d;
-  --cbp:repeating-linear-gradient(45deg,#ffffff12 0 1cqw,transparent 1cqw 8cqw),repeating-linear-gradient(-45deg,#ffffff12 0 1cqw,transparent 1cqw 8cqw); --cbe:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%23ffffffd9' stroke-width='1.4'/%3E%3Cpath d='M16 8.6c-3 3-5.7 4.8-5.7 7.5a3 3 0 0 0 5 2.2l-1.1 3.4h3.6l-1.1-3.4a3 3 0 0 0 5-2.2c0-2.7-2.7-4.5-5.7-7.5z' fill='%23ffffffd9'/%3E%3C/svg%3E"); }
-.dk-mint{ --cbk:linear-gradient(145deg,#a4f2cf 0%,#45bfae 50%,#2f74a8 100%); --cbb:#3fa9a0; --cbf:#0d2b3340;
-  --cbp:radial-gradient(130% 70% at 50% 110%,#ffffff40,transparent 60%); --cbe:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%230d2b33cc' stroke-width='1.4'/%3E%3Cpath d='M16 8.6c-3 3-5.7 4.8-5.7 7.5a3 3 0 0 0 5 2.2l-1.1 3.4h3.6l-1.1-3.4a3 3 0 0 0 5-2.2c0-2.7-2.7-4.5-5.7-7.5z' fill='%230d2b33cc'/%3E%3C/svg%3E"); }
-.dk-gold{ --cbk:linear-gradient(155deg,#ffd36b 0%,#ff8f5a 55%,#e2577c 100%); --cbb:#f08060; --cbf:#ffffff73;
-  --cbp:repeating-linear-gradient(120deg,#ffffff24 0 1cqw,transparent 1cqw 7cqw); --cbe:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%23ffffffd9' stroke-width='1.4'/%3E%3Cpath d='M16 8.6c-3 3-5.7 4.8-5.7 7.5a3 3 0 0 0 5 2.2l-1.1 3.4h3.6l-1.1-3.4a3 3 0 0 0 5-2.2c0-2.7-2.7-4.5-5.7-7.5z' fill='%23ffffffd9'/%3E%3C/svg%3E"); }
-.dk-paper{ --cbk:linear-gradient(160deg,#ffffff,#ecebe7); --cbb:#d6d3cb; --cbf:#11111133;
-  --cbp:repeating-conic-gradient(#1111110f 0 25%,transparent 0 50%) 0 0/9cqw 9cqw; --cbe:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%23111111cc' stroke-width='1.4'/%3E%3Cpath d='M16 8.6c-3 3-5.7 4.8-5.7 7.5a3 3 0 0 0 5 2.2l-1.1 3.4h3.6l-1.1-3.4a3 3 0 0 0 5-2.2c0-2.7-2.7-4.5-5.7-7.5z' fill='%23111111cc'/%3E%3C/svg%3E"); }
-.dk-stripes{ --cbk:linear-gradient(160deg,#242428,#0f0f11); --cbb:#2e2e33; --cbf:#cde8c626;
-  --cbp:repeating-linear-gradient(45deg,#ffffff0d 0 1.6cqw,transparent 1.6cqw 3.2cqw),repeating-linear-gradient(-45deg,#0000004d 0 1.6cqw,transparent 1.6cqw 3.2cqw); --cbe:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%23cde8c6' stroke-width='1.4'/%3E%3Cpath d='M16 8.6c-3 3-5.7 4.8-5.7 7.5a3 3 0 0 0 5 2.2l-1.1 3.4h3.6l-1.1-3.4a3 3 0 0 0 5-2.2c0-2.7-2.7-4.5-5.7-7.5z' fill='%23cde8c6'/%3E%3C/svg%3E"); }
+/* --cbk card colour, --cbb edge, --cbp pattern inside the frame, --cbf the thin inner frame */
+:root,.dk-red{ --cbk:linear-gradient(150deg,#b02a31,#7d1a20); --cbb:#c4424a; --cbf:#ffffffa6;
+  --cbp:repeating-linear-gradient(135deg,#ffffff26 0 2.6cqw,transparent 2.6cqw 9.5cqw); }
+.dk-navy{ --cbk:linear-gradient(150deg,#22375c,#152440); --cbb:#33507f; --cbf:#ffffff59;
+  --cbp:repeating-linear-gradient(135deg,#ffffff1f 0 2.6cqw,transparent 2.6cqw 9.5cqw); }
+.dk-mint{ --cbk:linear-gradient(150deg,#d6eecf,#b5d9ab); --cbb:#a9cf9e; --cbf:#1b2a2166;
+  --cbp:repeating-linear-gradient(135deg,#1b2a2124 0 2.6cqw,transparent 2.6cqw 9.5cqw); }
+.dk-gold{ --cbk:linear-gradient(150deg,#ecd27a,#d1ae47); --cbb:#c9a63f; --cbf:#4a3a0a59;
+  --cbp:radial-gradient(circle,#4a3a0a3d 24%,transparent 27%) 0 0/12cqw 12cqw; }
+.dk-paper{ --cbk:linear-gradient(150deg,#f4f2ec,#e2ded3); --cbb:#d2cdc0; --cbf:#00000033;
+  --cbp:repeating-linear-gradient(0deg,#00000014 0 1.2cqw,transparent 1.2cqw 9cqw),repeating-linear-gradient(90deg,#00000014 0 1.2cqw,transparent 1.2cqw 9cqw); }
+.dk-stripes{ --cbk:linear-gradient(150deg,#1c1c20,#121214); --cbb:#2a2a2f; --cbf:transparent;
+  --cbp:repeating-linear-gradient(135deg,#26262b 0 2.6cqw,transparent 2.6cqw 9.5cqw); }
 
-.card.back{background:var(--cbk);border:0;box-shadow:inset 0 0 0 1px var(--cbb),0 2px 8px #0006}
-/* glossy sheen over the pattern, inside a thin frame */
-.card.back::after{inset:7%;border-radius:10%/7%;background:linear-gradient(165deg,#ffffff2e 0%,transparent 42%),var(--cbp);box-shadow:inset 0 0 0 1px var(--cbf)}
-.card.back::before{content:'';position:absolute;inset:0;margin:auto;width:42%;aspect-ratio:1;z-index:1;background:var(--cbe) center/contain no-repeat;opacity:.9}
-.card.back.mini::before{width:56%}
+.card.back{background:var(--cbk);border-color:var(--cbb)}
+.card.back::after{background:var(--cbp);box-shadow:inset 0 0 0 1px var(--cbf)}
 /* undealt board slots: quiet outlines, whatever the back design */
 .card.ghost.slot{border-color:#232327}
 .card.ghost.slot::after{background:none}
-
-/* opponents' face-down cards, fanned behind their avatar while they're in the hand */
-.av .fan{position:absolute;right:-30%;bottom:-6%;width:62%;height:62%;z-index:-1;pointer-events:none;animation:fade .3s ease both}
-.av .fan .card{position:absolute;width:56%;bottom:0;box-shadow:inset 0 0 0 1px var(--cbb),0 1px 4px #0008}
-.av .fan .card:first-child{right:22%;transform:rotate(-12deg);transform-origin:bottom center}
-.av .fan .card:last-child{right:0;transform:rotate(10deg);transform-origin:bottom center}
-.seat .av{isolation:isolate}
 
 /* settings: deck picker */
 .set-h{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#6d6d72;margin:6px 0 8px}
