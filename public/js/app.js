@@ -620,7 +620,7 @@ function renderTable(prev){
   } else {
     box=`<div class="hand"><div class="hn">Open seat</div><button class="plus" data-k="plus" data-act="sit" data-i="${anchor}" ${seated?'disabled':''}></button><div class="hn"></div></div>`;
   }
-  const flung = mine && mine.folded && ui.flung===v.handNo;   // swiped away: stays thrown until the next hand
+  const flung = mine && mine.folded && ui.flung===v.handNo;   // swiped away: thrown briefly, then settles back as the folded silhouette
   const holeEl=`<div class="hole ${mine&&mine.folded?'folded':''} ${flung?'flung':''} ${holeCards?'mine':''}" id="hole"${holeCards?
     ` role="button" tabindex="0" aria-label="Your cards: ${hidden?'hidden, press to show':esc(holeCards.join(' '))+', press to hide'}"`:''}>${hole}</div>`;
   const swipeFold = myTurn && mine && !mine.folded && !mine.allIn && holeCards;
@@ -764,7 +764,8 @@ function bindHole(canFold){
   h.onpointerup=h.onpointercancel=e=>{
     if(!drag.on) return;
     const { dy, moved, t0 }=drag; drag.on=false; drag.dy=0;
-    if(canFold && dy>FOLD_PX && e.type==='pointerup'){ h.classList.remove('drag'); h.classList.add('flung'); ui.flung=view.handNo; doAction('fold'); return; }
+    if(canFold && dy>FOLD_PX && e.type==='pointerup'){ h.classList.remove('drag'); h.classList.add('flung'); const hn=ui.flung=view.handNo; doAction('fold');
+      setTimeout(()=>{ if(ui.flung===hn){ ui.flung=null; render(); } }, 450); return; }
     dragLook(h);
     if(e.type==='pointerup' && !moved && performance.now()-t0<450) toggleHide();
   };
