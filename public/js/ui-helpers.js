@@ -4,7 +4,7 @@ export const app = document.getElementById('app');
 export const short = n => n>=1e6 ? +(n/1e6).toFixed(1)+'M' : n>=1000 ? +(n/1000).toFixed(1)+'K' : ''+n;
 export const esc = s => String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export const SUITCH = {s:'♠︎',h:'♥︎',d:'♦︎',c:'♣︎'};
-export const fmtCode = c => (+c).toLocaleString('en-US');
+export const fmtCode = c => String(c ?? '');   // table codes are plain digits, no separators
 export const STAKES = [[1,2],[2,5],[5,10],[10,20],[25,50],[50,100],[100,200],[250,500]];
 export const AVATARS = ['🦁','🙂','👩🏽','👦🏻','🧔🏽','🐸','🦊','🐼','🐯','🐙','🤠','👽','🦄','🐻','😎','🤖'];
 export const EMOTES = ['👋','👏','😆','😫','😠','🖕','🥳'];
