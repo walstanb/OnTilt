@@ -1,10 +1,10 @@
 /* ---------- brand ---------- */
 .brand{display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;min-width:0}
-.wm{display:inline-flex;align-items:center;gap:.3em;font-size:18px;font-weight:800;letter-spacing:-.035em;color:#f4f4f5}
+.wm{display:inline-flex;align-items:center;gap:.24em;font-size:18px;font-weight:800;letter-spacing:-.035em;color:#f4f4f5}
 /* "Tilt" leans like the card in the mark */
 .wm b{display:inline-block;font-weight:800;transform:skewX(-9deg);padding-right:.06em;
   background:linear-gradient(120deg,#eaf8e4,#a9e0b4 60%,#7fd0a8);-webkit-background-clip:text;background-clip:text;color:transparent}
-.wm .mark{width:1.12em;height:1.1em;flex:none;margin-top:-.04em;transition:transform .35s var(--spring,ease)}
+.wm .mark{width:.9em;height:.88em;flex:none;transition:transform .35s var(--spring,ease)}
 .wm:hover .mark{transform:rotate(-8deg) scale(1.06)}
 .brand small{display:block;margin-top:4px;font-size:12px;color:var(--mut);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .panel .top .wm{font-size:27px}
