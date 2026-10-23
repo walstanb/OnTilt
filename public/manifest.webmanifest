@@ -1,0 +1,11 @@
+{
+  "name": "OnTilt",
+  "short_name": "OnTilt",
+  "description": "Peer-to-peer Texas Hold'em for friends. Online or on the same Wi-Fi.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "icons": [{ "src": "assets/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

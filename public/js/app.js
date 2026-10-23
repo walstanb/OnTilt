@@ -13,6 +13,8 @@ import { morph } from './morph.js';
 import { app, short, esc, fmtCode, STAKES, AVATARS, EMOTES, BOTS, ICON, cardHTML, toast, LS, randomName } from './ui-helpers.js';
 import { play, fx as fxPrefs } from './sound.js';
 import { qrSVG } from './qr.js';
+import { makeOffer, answerOffer, acceptAnswer, opened } from './lan.js';
+import { startScanner } from './scan.js';
 
 // ------------------------------ profile ------------------------------
 const me = LS.get('pp-me', null) || { token: crypto.randomUUID?crypto.randomUUID():String(Math.random()).slice(2), name:'', av:AVATARS[0] };
@@ -48,10 +50,7 @@ async function connect(code){
     net = { room, act, selfId };
     act.onMessage = (d,ctx) => onNet(d, ctx.peerId);
     room.onPeerJoin = pid => { if(isHost) return; act.send({t:'hello',...helloData()},{target:pid}).catch(()=>{}); };
-    room.onPeerLeave = pid => {
-      if(isHost){ peers.delete(pid); for(const s of S.seats) if(s&&s.pid===pid){ s.connected=false; } S.seq++; hostSync(); }
-      else if(pid===hostPid){ hostLost=true; render(); }
-    };
+    room.onPeerLeave = lost;
     if(isHost){ for(const s of S.seats) if(s&&s.token===me.token) s.pid=selfId; hostSync(); }
     else {
       // Keep saying hello until the host answers: covers lost messages and a host that opens the table after us.
@@ -61,15 +60,40 @@ async function connect(code){
   }catch(e){
     console.error(e);
     net=null;
-    if(isHost) toast('Offline mode: friends can’t join, but bots can play', 4000);
+    if(isHost) toast('No internet: invite nearby players with ••• → Show QR code (same Wi-Fi)', 5000);
     else { joinIssue='offline'; render(); toast('Could not load the peer-to-peer library', 4000); }
   }
 }
 const helloData = () => ({ token:me.token, name:me.name||'player', av:me.av });
 function send(d){
   if(isHost) return handle(d, myPid());
-  if(!net) return;
-  net.act.send(d, hostPid ? {target:hostPid} : undefined).catch(()=>{});
+  netSend(d, hostPid || undefined);
+}
+
+// LAN links (offline play): pid -> data channel. Messages go over a LAN link when there is one, else over Trystero.
+const links=new Map();
+function wire(pid, ch, pc){
+  links.set(pid, ch);
+  ch.onmessage = e => { let d; try{ d=JSON.parse(e.data); }catch{ return; } onNet(d, pid); };
+  const gone = () => { if(links.get(pid)!==ch) return; links.delete(pid); lost(pid); };
+  ch.addEventListener('close', gone);
+  pc.addEventListener('connectionstatechange', () => { if(pc.connectionState==='failed' || pc.connectionState==='closed') gone(); });
+}
+function lost(pid){
+  if(isHost){ peers.delete(pid); for(const s of S.seats) if(s&&s.pid===pid){ s.connected=false; } S.seq++; hostSync(); }
+  else if(pid===hostPid){ hostLost=true; render(); }
+}
+function netSend(d, target){
+  const out = c => { if(c.readyState==='open') try{ c.send(JSON.stringify(d)); }catch{} };
+  if(target && links.has(target)) return out(links.get(target));
+  if(!target) for(const c of links.values()) out(c);
+  if(net) net.act.send(d, target ? {target} : undefined).catch(()=>{});
+}
+// Real internet (not just Wi-Fi): can we reach the CDN the online mode depends on?
+async function hasInternet(){
+  if(!navigator.onLine) return false;
+  try{ await fetch('https://esm.sh/trystero@0.26.0', { method:'HEAD', mode:'no-cors', cache:'no-store', signal:AbortSignal.timeout(2500) }); return true; }
+  catch{ return false; }
 }
 function onNet(d, pid){
   if(isHost) return handle(d, pid);
@@ -211,11 +235,11 @@ function hostSync(){
   schedule();
   S.savedAt=Date.now();
   LS.set('pp-host-'+S.table, S);
-  if(net) for(const pid of peers.keys()) net.act.send({t:'state',v:viewFor(pid)},{target:pid}).catch(()=>{});
+  for(const pid of peers.keys()) netSend({t:'state',v:viewFor(pid)}, pid);
   setView(viewFor(myPid()));
 }
 function broadcastEmote(seat,e){
-  if(net) net.act.send({t:'emote',seat,e}).catch(()=>{});
+  netSend({t:'emote',seat,e});
   floatEmote(seat,e);
 }
 
@@ -363,8 +387,16 @@ function renderTable(prev){
   else if(v) sub=`Blinds ${fmt(v.sb)}/${fmt(v.bb)}`;
   const head=`<div class="top"><button class="ico" data-act="leave" aria-label="Leave">${ICON.back}</button>
     ${brand(sub)}<button class="ico" data-act="menu" aria-label="Menu">${ICON.menu}</button></div>`;
+  if(!v && lan.show && lan.svg){
+    paint(head+`<div class="center-msg"><div class="lanreply">
+      <div class="qr-box">${lan.svg}</div>
+      <b>Show this to the host</b>
+      <span class="sub">${lan.online?'Connecting over the internet is slow, so let’s use Wi-Fi.':'No internet, so we’ll connect over Wi-Fi.'} The host taps ••• → Show QR code and points their camera here.</span></div></div>`);
+    return;
+  }
   if(!v){
     const why = {
+      nolan:`You’re offline.<br><span class="sub">Ask the host to open ••• → Show QR code, then scan it with your phone camera. You both need the same Wi-Fi.</span>`,
       slow:`Still looking for the host…<br><span class="sub">Make sure the host has this table open in a browser tab and their screen is on.</span>`,
       blocked:`Found the host, but your networks won’t connect directly.<br><span class="sub">Try another network (Wi-Fi ↔ mobile data).</span>`,
       offline:`Couldn’t load the connection library.<br><span class="sub">Check your internet connection.</span>`,
@@ -605,7 +637,7 @@ function sheet(title, text, buttons, cls=''){
   document.body.appendChild(bg);
   return bg;
 }
-function closeSheet(bg){ if(bg.classList.contains('closing')) return; bg.classList.add('closing'); setTimeout(()=>bg.remove(),180); }
+function closeSheet(bg){ if(bg.classList.contains('closing')) return; bg.classList.add('closing'); bg.onClose?.(); setTimeout(()=>bg.remove(),180); }
 function inviteUrl(){ return location.origin+location.pathname+'#'+(tableCode||lobby.code); }
 async function shareInvite(){
   const url=inviteUrl();
@@ -616,13 +648,68 @@ async function copyInvite(){
   try{ await navigator.clipboard.writeText(inviteUrl()); toast('Invite link copied'); }
   catch{ sheet('Invite link', `<p class="sel-text">${esc(inviteUrl())}</p>`, []); }
 }
-async function qrSheet(){
+async function qrSheet(forceOnline){
+  // Hosts without internet go straight to nearby (LAN) pairing
+  if(isHost && !forceOnline && !(await hasInternet())) return lanSheet();
   const url=inviteUrl();
   const bg=sheet('Scan to join', `<div class="qr"><div class="qr-box"><div class="spin"></div></div><p>Point a phone camera here to join table ${fmtCode(tableCode||lobby.code)}.</p></div>`,
-    [{label:'Copy link',fn:copyInvite}], 'qr-sheet');
+    [{label:'Copy link',fn:copyInvite}, ...(isHost?[{label:'No internet? Pair nearby',fn:lanSheet}]:[])], 'qr-sheet');
   try{ bg.querySelector('.qr-box').innerHTML=await qrSVG(url); }
   catch{ bg.querySelector('.qr-box').innerHTML='<p>Couldn’t draw the QR code. Use the link instead.</p>'; }
 }
+// Host: pair nearby players without internet. Show an offer QR; the guest's phone camera opens it,
+// their screen shows a reply QR, and we scan that reply here. Repeats for each player.
+let lanPending=null;
+async function lanSheet(){
+  const bg=sheet('Play nearby, no internet', `<div class="lan">
+      <ol class="steps"><li>They scan this code with their phone camera.</li><li>Point your camera at the code on their screen.</li></ol>
+      <div class="qr-box" id="lanqr"><div class="spin"></div></div>
+      <div class="cam"><video id="lancam" playsinline muted></video><span id="lanstat">Starting camera…</span></div>
+      <p class="note">Everyone needs the same Wi-Fi (or your phone’s hotspot). Guests must have opened OnTilt once before.</p></div>`,
+    [{label:'Use internet invite instead',fn:()=>qrSheet(true)}], 'qr-sheet lan-sheet');
+  const stat=t=>{ const el=bg.querySelector('#lanstat'); if(el) el.textContent=t; };
+  let scanner=null, busy=false;
+  bg.onClose=()=>{ scanner?.stop(); if(lanPending && !links.size){ /* keep unused offer for next time */ } };
+  const fresh=async()=>{
+    try{
+      lanPending=await makeOffer();
+      const box=bg.querySelector('#lanqr'); if(box) box.innerHTML=await qrSVG(inviteUrl()+'~'+lanPending.code);
+    }catch(e){ console.warn(e); const box=bg.querySelector('#lanqr'); if(box) box.innerHTML='<p>Couldn’t find a local network. Connect to Wi-Fi or turn on your hotspot.</p>'; }
+  };
+  const onCode=async text=>{
+    const m=String(text).match(/^OTA:(.+)$/); if(!m || busy || !lanPending) return;
+    busy=true; stat('Connecting…');
+    const p=lanPending; lanPending=null;
+    try{
+      await acceptAnswer(p.pc, m[1]); await opened(p.ch);
+      wire('lan-'+Math.random().toString(36).slice(2,9), p.ch, p.pc);
+      play('join'); toast('Player connected over Wi-Fi'); stat('Connected! Scan the next player’s reply…');
+    }catch(e){ console.warn(e); p.pc.close(); stat('Couldn’t connect. Check you’re on the same Wi-Fi and try again.'); }
+    busy=false;
+    if(bg.isConnected && !bg.classList.contains('closing')) fresh();
+  };
+  // camera first: with camera permission, WebRTC offers carry real LAN addresses, which connect more reliably
+  try{ scanner=await startScanner(bg.querySelector('#lancam'), onCode); stat('Scanning for their reply…'); }
+  catch{ stat('Camera blocked. Allow camera access to scan replies.'); }
+  if(!bg.isConnected || bg.classList.contains('closing')){ scanner?.stop(); return; }
+  if(!lanPending) await fresh(); else { const box=bg.querySelector('#lanqr'); if(box) box.innerHTML=await qrSVG(inviteUrl()+'~'+lanPending.code); }
+}
+
+// Guest: answer a host's offer from the scanned link and show the reply QR for the host to scan.
+const lan={ reply:'', svg:'', show:false, online:true };
+async function startLanGuest(offer){
+  try{
+    const g=await answerOffer(offer);
+    wire('lan-host', g.ch, g.pc);
+    const hi=()=>{ if(view && !hostLost) return; netSend({t:'hello',...helloData()}, 'lan-host'); };
+    g.ch.addEventListener('open', ()=>{ hi(); setInterval(hi, 3000); lan.show=false; render(); });
+    lan.reply='OTA:'+g.code; lan.svg=await qrSVG(lan.reply);
+    if(!lan.online) lan.show=true;
+    else setTimeout(()=>{ if(!view){ lan.show=true; render(); } }, 4000);   // internet path didn't connect quickly: offer the LAN route
+    render();
+  }catch(e){ console.warn(e); if(!lan.online){ joinIssue='nolan'; render(); } }
+}
+
 function ledgerSheet(){
   const rows=(view?.ledger||[]).map(L=>`<tr><td>${esc(L.name)}${L.seated?'':' <span style="color:var(--mut)">(left)</span>'}</td><td>${fmt(L.buy)}</td><td class="${L.net>0?'pos':L.net<0?'neg':''}">${L.net>0?'+':''}${fmt(L.net)}</td></tr>`).join('');
   sheet('Ledger', `<table class="ledger"><tr><th>Player</th><th>Bought in</th><th>Net</th></tr>${rows||'<tr><td colspan=3>No buy-ins yet</td></tr>'}</table>`, []);
@@ -777,13 +864,17 @@ function resumeHost(code){
   S.seq++; screen='table'; hostSync(); connect(code);
   toast('Table resumed');
 }
-function startJoining(){
-  tableCode=lobby.code; isHost=false; screen='table'; render(); connect(tableCode);
-  setTimeout(()=>{ if(!view && screen==='table' && !joinIssue){ joinIssue='slow'; render(); } }, JOIN_HINT_MS);
+async function startJoining(){
+  tableCode=lobby.code; isHost=false; screen='table'; render();
+  lan.online=await hasInternet();
+  if(lobby.lanOffer) startLanGuest(lobby.lanOffer);          // scanned an offline QR: Wi-Fi route ready either way
+  if(lan.online) connect(tableCode);
+  else if(!lobby.lanOffer){ joinIssue='nolan'; render(); }
+  setTimeout(()=>{ if(!view && screen==='table' && !joinIssue && !lan.show){ joinIssue='slow'; render(); } }, JOIN_HINT_MS);
 }
 function endTable(){
   sheet('Close the table?','Everyone is sent back to the start screen and the saved table is deleted.',[{label:'Close table',cls:'danger',fn:()=>{
-    if(net) net.act.send({t:'ended'}).catch(()=>{});
+    netSend({t:'ended'});
     LS.del('pp-host-'+tableCode); setTimeout(goHome,300); }}]);
 }
 function goHome(){ try{ net?.room.leave(); }catch{} history.replaceState(null,'',location.pathname); location.reload(); }
@@ -793,8 +884,11 @@ const newCode = () => String(1000000+rnd(9000000));
 (function boot(){
   const code=(location.hash.slice(1).match(/\d{7}/)||[])[0];
   if(code && LS.get('pp-host-'+code,null)) return resumeHost(code);
-  if(code){ lobby={...lobby,mode:'join',code}; }
+  const offer=(location.hash.match(/~(.+)$/)||[])[1];
+  if(code){ lobby={...lobby,mode:'join',code,lanOffer:offer?decodeURIComponent(offer):''}; }
   else lobby={...lobby,mode:'create',code:newCode()};
   screen='lobby'; render();
 })();
 window.addEventListener('hashchange',()=>location.reload());
+// cache the app so it opens without internet (needed for nearby play)
+if('serviceWorker' in navigator && location.protocol!=='file:') navigator.serviceWorker.register('sw.js').catch(()=>{});

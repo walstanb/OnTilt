@@ -22,13 +22,18 @@ public/              # everything served by GitHub Pages
     config.js        # app ID, relays, TURN servers, shot clock
     sound.js         # synthesized sounds + vibration (no audio files)
     qr.js            # QR codes for invites (bundled qrcode-generator in vendor/)
+    lan.js           # offline Wi-Fi connections: WebRTC with the handshake carried in QR codes
+    scan.js          # camera QR scanner (BarcodeDetector, or bundled jsQR)
     morph.js         # tiny DOM patcher so re-renders keep elements (and their transitions)
     engine.js        # Hold'em rules engine (pure logic, no DOM)
     ui-helpers.js    # formatting, icons, card markup, toast, storage
     app.js           # networking, host loop, rendering, input
   assets/favicon.svg
+  sw.js              # service worker: caches the app so it opens without internet
+  manifest.webmanifest
 .github/workflows/deploy.yml   # tests the engine, then deploys public/ to Pages on every push to main
 tests/engine.test.mjs          # rules, side pots, deck and tournament simulations
+tests/sw-files.test.mjs        # every site file is cached for offline use
 ```
 
 ## Tests
@@ -61,6 +66,11 @@ Every push to `main` runs `.github/workflows/deploy.yml`, which syntax-checks th
 - **Tournament:** pick Tournament in the lobby, choose a speed (blinds up every 5, 10 or 15 minutes), seat players, then tap **Start tournament**. No rebuys or late entries; last player standing wins.
 - **Invite in person:** `•••` > **Show QR code**, or the QR button in the lobby.
 - **Save & resume:** tables you host save automatically on your device and appear under **Your tables** in the lobby. `•••` > **Save game to a file** lets you move a game to another device (**Open save file** in the lobby).
+- **No internet (same Wi-Fi):** everyone opens OnTilt once while online so it's saved on their phone. Later, without internet:
+  1. Host: `•••` > **Show QR code**. With no internet it switches to nearby mode by itself (or tap **No internet? Pair nearby**).
+  2. Guest: scan the code with the phone camera. Their screen shows a reply code.
+  3. Host: point the camera (already open on the same screen) at the reply code. Repeat for each player.
+  The same QR also works when the guest has internet: they connect online, and only fall back to Wi-Fi if that's slow.
 - **History:** `•••` > **Hand history** shows the last 15 hands.
 - **Sound & vibration:** toggle from `•••`.
 - **Desktop:** wide screens use the same open layout as phones, widened, with an action bar at the bottom. Shortcuts: `F` fold, `C` or `Space` check/call, `R` min-raise, `↑` custom raise, `Enter` confirm, `H` hide cards, `Esc` close.

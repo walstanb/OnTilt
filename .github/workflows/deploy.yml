@@ -26,6 +26,10 @@ jobs:
         run: for f in public/js/*.js; do node --check "$f"; done
       - name: Engine tests (rules, side pots, deck, tournaments)
         run: node tests/engine.test.mjs
+      - name: Service worker caches every file
+        run: node tests/sw-files.test.mjs
+      - name: Stamp service worker cache version
+        run: sed -i "s/__BUILD__/${GITHUB_SHA::12}/" public/sw.js && grep -q "${GITHUB_SHA::12}" public/sw.js
       - name: Inject TURN credentials URL from repo secret
         env:
           TURN_CREDENTIALS_URL: ${{ secrets.TURN_CREDENTIALS_URL }}

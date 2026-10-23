@@ -14,5 +14,5 @@ export async function qrSVG(text){
   const n = q.getModuleCount(), pad = 3, size = n + pad*2;
   let path = '';
   for(let y = 0; y < n; y++) for(let x = 0; x < n; x++) if(q.isDark(y, x)) path += `M${x+pad} ${y+pad}h1v1h-1z`;
-  return `<svg viewBox="0 0 ${size} ${size}" shape-rendering="crispEdges" role="img" aria-label="QR code"><rect width="${size}" height="${size}" fill="#fff"/><path d="${path}" fill="#000"/></svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" shape-rendering="crispEdges" role="img" aria-label="QR code"><rect width="${size}" height="${size}" fill="#fff"/><path d="${path}" fill="#000"/></svg>`;
 }
