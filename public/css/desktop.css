@@ -14,7 +14,7 @@
   .sheet .sb:not(.primary):hover{background:#26262b}
 }
 
-@media (min-width:960px) and (min-height:560px){
+@media (min-width:960px) and (min-height:560px) and (min-aspect-ratio:5/4){
   /* lobby: a two-column card — settings on the left, you + actions on the right */
   #app.lobby-wide{max-width:1040px;padding:32px 32px 28px;border:0;justify-content:center}
   #app.lobby-wide .lobby{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:36px;height:auto;min-height:0;max-height:min(760px,100%);align-items:stretch}

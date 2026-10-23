@@ -367,8 +367,21 @@ const SPEEDS=[['Turbo',5],['Regular',10],['Slow',15]];   // tournament: minutes 
 
 // Wide screens get an oval table with a bottom action dock; phones keep the stacked layout.
 // Keep this query in sync with the one in css/desktop.css.
-const deskMQ = matchMedia('(min-width:960px) and (min-height:560px)');
-deskMQ.addEventListener('change', ()=>render());
+// Landscape only: a portrait iPad (or any tall window) gets the phone layout, scaled up instead.
+const deskMQ = matchMedia('(min-width:960px) and (min-height:560px) and (min-aspect-ratio:5/4)');
+deskMQ.addEventListener('change', ()=>{ fitZoom(); render(); });
+
+// Big screens using the phone layout (portrait tablets) scale the whole UI up so it fills the screen.
+// The phone layout is designed around ~540×880; --z is how much bigger this screen is.
+function fitZoom(){
+  const big = !deskMQ.matches && innerWidth>=640;
+  const z = big ? Math.max(1, Math.min(innerWidth/540, innerHeight/880, 1.8)) : 1;
+  document.documentElement.style.setProperty('--z', z.toFixed(3));
+  document.body.classList.toggle('zoomed', big);
+}
+fitZoom();
+addEventListener('resize', fitZoom);
+addEventListener('orientationchange', ()=>setTimeout(()=>{ fitZoom(); render(); }, 250));
 
 let paintedScreen=null;
 function render(prev){
