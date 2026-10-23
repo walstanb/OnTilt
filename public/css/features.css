@@ -150,26 +150,34 @@ body.zoomed .float{font-size:calc(46px * var(--z))}
 .btn.pre.sel{color:var(--mint);border-style:solid;border-color:var(--mint);background:#0e1712}
 
 /* ---------- card backs: each design sets these variables; faces always stay classic ---------- */
-:root,.dk-stripes{ --cbk:linear-gradient(150deg,#1c1c20,#121214); --cbb:#2a2a2f;
+/* --cbk card colour, --cbb edge, --cbp pattern inside the frame, --cbf the thin inner frame */
+:root,.dk-red{ --cbk:linear-gradient(150deg,#b02a31,#7d1a20); --cbb:#c4424a; --cbf:#ffffffa6;
+  --cbp:repeating-linear-gradient(135deg,#ffffff26 0 2.6cqw,transparent 2.6cqw 9.5cqw); }
+.dk-navy{ --cbk:linear-gradient(150deg,#22375c,#152440); --cbb:#33507f; --cbf:#ffffff59;
+  --cbp:repeating-linear-gradient(135deg,#ffffff1f 0 2.6cqw,transparent 2.6cqw 9.5cqw); }
+.dk-mint{ --cbk:linear-gradient(150deg,#d6eecf,#b5d9ab); --cbb:#a9cf9e; --cbf:#1b2a2166;
+  --cbp:repeating-linear-gradient(135deg,#1b2a2124 0 2.6cqw,transparent 2.6cqw 9.5cqw); }
+.dk-gold{ --cbk:linear-gradient(150deg,#ecd27a,#d1ae47); --cbb:#c9a63f; --cbf:#4a3a0a59;
+  --cbp:radial-gradient(circle,#4a3a0a3d 24%,transparent 27%) 0 0/12cqw 12cqw; }
+.dk-paper{ --cbk:linear-gradient(150deg,#f4f2ec,#e2ded3); --cbb:#d2cdc0; --cbf:#00000033;
+  --cbp:repeating-linear-gradient(0deg,#00000014 0 1.2cqw,transparent 1.2cqw 9cqw),repeating-linear-gradient(90deg,#00000014 0 1.2cqw,transparent 1.2cqw 9cqw); }
+.dk-stripes{ --cbk:linear-gradient(150deg,#1c1c20,#121214); --cbb:#2a2a2f; --cbf:transparent;
   --cbp:repeating-linear-gradient(135deg,#26262b 0 2.6cqw,transparent 2.6cqw 9.5cqw); }
-.dk-mint{ --cbk:linear-gradient(150deg,#1b2a21,#111a15); --cbb:#2c4a3a;
-  --cbp:repeating-linear-gradient(135deg,#2c4a3a 0 2.6cqw,transparent 2.6cqw 9.5cqw); }
-.dk-grid{ --cbk:#16161a; --cbb:#2a2a2f;
-  --cbp:repeating-linear-gradient(0deg,#34343b 0 1.4cqw,transparent 1.4cqw 9cqw),repeating-linear-gradient(90deg,#34343b 0 1.2cqw,transparent 1.2cqw 9cqw); }
-.dk-dots{ --cbk:#16161a; --cbb:#2a2a2f;
-  --cbp:radial-gradient(circle,#3c3c44 24%,transparent 27%) 0 0/12cqw 12cqw; }
-.dk-logo{ --cbk:linear-gradient(150deg,#1c1c20,#121214); --cbb:#2c4a3a;
-  --cbp:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='9' y='5' width='14' height='22' rx='3' fill='none' stroke='%23cde8c6' stroke-width='2' transform='rotate(14 16 16)'/%3E%3C/svg%3E") center/46% no-repeat; }
 
 .card.back{background:var(--cbk);border-color:var(--cbb)}
-.card.back::after{background:var(--cbp)}
+.card.back::after{background:var(--cbp);box-shadow:inset 0 0 0 1px var(--cbf)}
+/* undealt board slots: quiet outlines, whatever the back design */
+.card.ghost.slot{border-color:#232327}
+.card.ghost.slot::after{background:none}
 
 /* settings: deck picker */
 .set-h{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#6d6d72;margin:6px 0 8px}
-.decks{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin-bottom:14px}
+.decks{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-bottom:14px}
 .deckopt{display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 4px 6px;border-radius:14px;border:2px solid transparent;background:#1c1c1f;transition:border-color .15s}
 .deckopt.sel{border-color:var(--mint)}
 .dkc{display:flex;gap:1px}
 .dkc{gap:2px} .dkc .mini{width:38px}
 .dkn{font-size:11px;color:#c7c7cc;white-space:nowrap}
 .deckopt.sel .dkn{color:var(--mint)}
+/* your hand's name stays clear of the ⓘ and reaction buttons in the box corners */
+.hand .hn{max-width:calc(100% - 68px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

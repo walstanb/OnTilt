@@ -80,7 +80,7 @@ Every push to `main` runs `.github/workflows/deploy.yml`, which syntax-checks th
 - **Raises** must at least double the current bet (opening bets are at least one big blind).
 - **Live actions:** each seat shows what that player just did (Raise, Call, All in…), and the line under the pot says it in words ("lolaa raises to 40").
 - **Pre-actions:** while others act, pick Check / Fold, Check, Call X or Call any (Fold, Call X, Call any when facing a bet). It fires when your turn comes if it still applies; a pre-check is cancelled if someone bets, a pre-call if the amount changes.
-- **Settings** (`•••` > **Settings**): card backs (Stripes, Mint, Grid, Dots, Logo; saved per device) and sound & vibration toggles. On iPhone (any browser, iOS 18+) vibration uses light system haptic taps, since iOS browsers don't support the web vibration API.
+- **Settings** (`•••` > **Settings**): card backs (Classic Red is the default; Navy, Mint, Gold, Paper, Charcoal; saved per device) and sound & vibration toggles. On iPhone (any browser, iOS 18+) vibration uses light system haptic taps, since iOS browsers don't support the web vibration API.
 - **Desktop:** wide screens use the same open layout as phones, widened, with an action bar at the bottom. Shortcuts: `F` fold, `C` or `Space` check/call, `R` min-raise, `↑` custom raise, `Enter` confirm, `H` hide cards, `Esc` close.
 - **Raise:** tap **Raise** for a min-raise, or **↑** for the slider with ½ Pot / Pot / All in.
 - **Reactions:** tap the smiley in your player box.

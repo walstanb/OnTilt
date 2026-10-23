@@ -676,7 +676,7 @@ function renderTable(prev){
   const mainW = R ? (R.pots?.[0]?.winners || Object.keys(R.won).map(Number)) : [];
   const lit = R && R.best && R.best[mainW[0]] ? new Set(R.best[mainW[0]]) : null;
   const litCls = c => lit && !lit.has(c) ? 'dimc' : '';
-  const board=[0,1,2,3,4].map(k=>v.board[k] ? cardHTML(v.board[k], `${k>=newCards?'deal':''} ${litCls(v.board[k])}`, (k-newCards)*90) : cardHTML('back')).join('');
+  const board=[0,1,2,3,4].map(k=>v.board[k] ? cardHTML(v.board[k], `${k>=newCards?'deal':''} ${litCls(v.board[k])}`, (k-newCards)*90) : cardHTML(null, 'slot')).join('');   // undealt: an empty outline, not a card back
   let why='';
   if(R){
     const nm=i=>esc(v.seats[i]?.name||'Player');
@@ -768,7 +768,7 @@ function renderTable(prev){
              : holeCards ? holeCards.map((c,k)=>cardHTML(c, holeNew?'deal':'', k*120)).join('')
              : (!seated && a && a.cards) ? a.cards.map(c=>cardHTML(c)).join('') : cardHTML(null)+cardHTML(null);
   let hn='';
-  if(seated && holeCards){ hn = hidden ? 'Hidden · tap to peek' : R&&R.hands[v.mySeat] ? R.hands[v.mySeat] : mine.shownHand || handName(bestOf([...holeCards,...v.board])); }
+  if(seated && holeCards){ hn = hidden ? 'Hidden' : R&&R.hands[v.mySeat] ? R.hands[v.mySeat] : mine.shownHand || handName(bestOf([...holeCards,...v.board])); }
   else if(!seated && a && R && R.hands[anchor]) hn=R.hands[anchor];
   const handTurn = v.toAct===anchor && active;
   let box;
@@ -1150,8 +1150,8 @@ function historySheet(){
 }
 // Card back designs: a per-device look (card faces always stay classic). Each design is a CSS class
 // that sets the back's variables (see "card backs" in css/features.css); previews carry their own class.
-const DECKS=[['stripes','Stripes'],['mint','Mint'],['grid','Grid'],['dots','Dots'],['logo','Logo']];
-let deck=LS.get('ot-deck','stripes'); if(!DECKS.some(d=>d[0]===deck)) deck='stripes';
+const DECKS=[['red','Classic Red'],['navy','Navy'],['mint','Mint'],['gold','Gold'],['paper','Paper'],['stripes','Charcoal']];
+let deck=LS.get('ot-deck','red'); if(!DECKS.some(d=>d[0]===deck)) deck='red';
 const applyDeck=()=>{ for(const [d] of DECKS) document.documentElement.classList.toggle('dk-'+d, d===deck); };
 applyDeck();
 function settingsSheet(){
