@@ -538,11 +538,10 @@ function runPre(v, myTurn){
   const pre=ui.pre, toCall=v.curBet-m.bet; ui.pre=null;
   let a=null;
   if(pre.kind==='checkfold') a = toCall>0 ? 'fold' : 'check';
-  else if(pre.kind==='check') a = toCall>0 ? null : 'check';
   else if(pre.kind==='fold') a = toCall>0 ? 'fold' : 'check';
   else if(pre.kind==='call') a = toCall===pre.amt ? 'call' : null;
   else if(pre.kind==='callany') a = 'call';
-  if(!a){ toast(pre.kind==='check' ? 'Someone bet, so your pre-check was cancelled' : 'The bet changed, so your pre-call was cancelled'); return; }
+  if(!a){ toast('The bet changed, so your pre-call was cancelled'); return; }
   setTimeout(()=>{ if(view && view.toAct===view.mySeat && view.handNo===v.handNo) doAction(a); }, 350);
 }
 
@@ -775,9 +774,9 @@ function renderTable(prev){
       const sel=k=>ui.pre?.kind===k?'sel':'';
       const opts = toCall>0
         ? [['fold','Fold'],['call',toCall>=mine.stack?`Call all in`:`Call ${fmt(toCall)}`],['callany','Call any']]
-        : [['checkfold','Check / Fold'],['check','Check'],['callany','Call any']];
+        : [['checkfold','Check / Fold'],['callany','Call any']];
       html=opts.map(([k,l])=>`<button class="btn pre ${sel(k)}" data-act="pre" data-v="${k}" data-amt="${k==='call'?toCall:''}" aria-pressed="${!!sel(k)}">${l}</button>`).join('');
-      ctrl=`<div class="ctrl" style="grid-template-columns:1fr 1.1fr 1fr">${html}</div>`;
+      ctrl=`<div class="ctrl" style="grid-template-columns:${opts.length>2?'1fr 1.1fr 1fr':'1fr 1fr'}">${html}</div>`;
     }
     else if(mine.folded) ctrl=`<div class="ctrl" style="grid-template-columns:1fr 1fr"><button class="btn" disabled>Folded</button>${mine.show
         ? '<button class="btn" disabled>Showing at the end</button>' : '<button class="btn on" data-act="show">Show cards at the end</button>'}</div>`;
