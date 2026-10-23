@@ -42,7 +42,7 @@
   background:conic-gradient(from 0deg,var(--green) calc(var(--p,1)*1turn),transparent 0);
   -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude}
 .hand .plus{margin:8px 0}
-.smile{position:absolute;right:-4px;bottom:-4px;width:40px;height:40px;border-radius:50%;background:#000;display:grid;place-items:center;color:#5c5c62}
+.smile{position:absolute;right:-4px;top:-4px;width:40px;height:40px;border-radius:50%;background:#000;display:grid;place-items:center;color:#5c5c62}
 .smile svg{width:26px;height:26px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round}
 .hint{position:absolute;left:0;width:54%;bottom:-18px;text-align:center;font-size:11px;color:#55555b;letter-spacing:.04em}
 

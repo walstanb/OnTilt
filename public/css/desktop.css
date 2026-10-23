@@ -69,3 +69,4 @@
 #app.wide .keys{font-size:12px;color:#5c5c62;text-align:right;letter-spacing:.02em}
 #app.wide kbd{font:inherit;font-weight:600;color:#8e8e93;border:1px solid #2e2e33;border-radius:5px;padding:1px 6px;margin:0 2px 0 8px}
 #app.wide .center-msg{max-width:none}
+#app.wide .shown{max-width:71px}

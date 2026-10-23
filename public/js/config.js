@@ -6,7 +6,7 @@ export const TURN_MS = 25000;
 // Nostr relays used only to introduce players to each other. Everyone must use the same list.
 export const RELAY_URLS = [
   'wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.primal.net', 'wss://relay.snort.social',
-  'wss://offchain.pub', 'wss://nostrcity-club.fly.dev', 'wss://relay.nostr.dev.br', 'wss://relay.routstr.com',
+  'wss://nostrcity-club.fly.dev', 'wss://relay.routstr.com',
 ];
 
 // TURN relays carry game traffic when two players can't connect directly

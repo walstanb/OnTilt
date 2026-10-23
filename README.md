@@ -59,7 +59,7 @@ Every push to `main` runs `.github/workflows/deploy.yml`, which syntax-checks th
 
 ## Playing
 
-- **Host:** open the site, pick stakes, enter your name, tap **Start game**. Tap the `•••` menu and **Invite friends** to share the link (it ends in your table number, like `#1203877`).
+- **Host:** open the site, pick stakes, enter your name, tap **Start game**. Tap the `•••` menu and **Invite friends** to share the link (it ends in your table number and host key, like `#1203877.5cc5c6d6f8107e91`).
 - **Friends:** open the link, pick a name and avatar, tap **Join table**, then tap any **+** to sit down.
 - **Bots:** as host, tap an empty **+** to add a bot. Handy for testing alone or filling seats. Tap a bot to remove it.
 - **Fold:** tap **Fold**, or swipe your cards up.
@@ -82,9 +82,11 @@ Every push to `main` runs `.github/workflows/deploy.yml`, which syntax-checks th
 - **Raise:** tap **Raise** for a min-raise, or **↑** for the slider with ½ Pot / Pot / All in.
 - **Reactions:** tap the smiley in your player box.
 - **Ledger:** `•••` > **Ledger** shows buy-ins and net results, for settling up afterward.
+- **Sit out:** `•••` > **Sit out next hand** in cash games; tap **I’m back** to rejoin.
 
 ## How it works
 
+- The host signs every update with a key made for the table; the invite link carries its fingerprint, so other players can't pretend to be the host. Guests only send their seat token to that verified host.
 - The host's browser is the dealer. It shuffles with `crypto.getRandomValues`, enforces the rules (blinds, min-raises, side pots, showdown), and sends each player only their own hole cards.
 - Connections are WebRTC via [Trystero](https://github.com/dmotz/trystero), which uses public Nostr relays just to introduce players. Game data then flows directly between browsers.
 - The host's table is saved in their browser. If the host closes the tab, play pauses; opening the same link again resumes it and players reconnect automatically.

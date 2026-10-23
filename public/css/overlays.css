@@ -1,19 +1,20 @@
 /* ---------- sheet + toast ---------- */
 .sheet-bg{position:fixed;inset:0;background:#000a;z-index:60;display:flex;align-items:flex-end;justify-content:center;animation:fade .15s}
+.sheet:focus{outline:none}
 .sheet{width:100%;max-width:520px;background:#161618;border-radius:28px 28px 0 0;padding:22px 16px max(env(safe-area-inset-bottom),18px);animation:up .2s ease-out;max-height:85vh;overflow:auto}
 .sheet h3{margin:0 0 4px;font-size:20px;font-weight:600}
 .sheet p{margin:0 0 16px;color:var(--mut);font-size:15px;line-height:1.4}
 .sheet .sb{display:block;width:100%;height:56px;border-radius:18px;background:var(--fill);font-size:17px;margin-top:10px;text-align:center}
 .sheet .sb.danger{color:#ff6b61}
 .sheet .sb.primary{background:#fff;color:#000;font-weight:500}
-.ledger{width:100%;border-collapse:collapse;font-size:15px;margin:4px 0 8px;font-variant-numeric:tabular-nums}
-.ledger td,.ledger th{padding:9px 4px;text-align:right;border-bottom:1px solid #26262a}
+.ledger{width:100%;border-collapse:collapse;font-size:14px;margin:4px 0 8px;font-variant-numeric:tabular-nums}
+.ledger td,.ledger th{padding:9px 3px;white-space:nowrap;text-align:right;border-bottom:1px solid #26262a}
 .ledger th{color:var(--mut);font-weight:500;font-size:13px}
 .ledger td:first-child,.ledger th:first-child{text-align:left}
 .pos{color:var(--green)}.neg{color:#ff6b61}
 @keyframes fade{from{opacity:0}}
 #toast{position:fixed;left:50%;top:max(env(safe-area-inset-top),10px);transform:translate(-50%,-140%);background:#222226;color:#fff;
-  padding:12px 18px;border-radius:999px;font-size:15px;z-index:70;transition:transform .25s;white-space:nowrap;max-width:92vw;overflow:hidden;text-overflow:ellipsis;box-shadow:0 6px 24px #000a}
+  padding:11px 18px;border-radius:22px;font-size:15px;line-height:1.35;z-index:70;transition:transform .25s;width:max-content;max-width:min(92vw,480px);text-align:center;box-shadow:0 6px 24px #000a}
 #toast.show{transform:translate(-50%,0)}
 .center-msg{flex:1;display:grid;place-items:center;text-align:center;color:var(--mut);font-size:16px;line-height:1.5;padding:0 20px}
 .spin{width:28px;height:28px;border-radius:50%;border:3px solid #333;border-top-color:#fff;margin:0 auto 16px;animation:spin .9s linear infinite}
@@ -21,4 +22,17 @@
 .banner{flex:none;text-align:center;font-size:13px;color:#ffb86b;padding:6px 0}
 
 @media (min-width:700px){ #app:not(.wide):not(.lobby-wide){border-left:1px solid #111;border-right:1px solid #111} }
+/* the ledger fits narrow phones: long names truncate, numbers never wrap */
+.ledger td:first-child{max-width:40vw;overflow:hidden;text-overflow:ellipsis}
+.standings td:nth-child(2),.standings th:nth-child(2){text-align:left;padding-left:10px}
+.standings .medal{font-size:20px}
+/* landscape phones: the table is taller than the screen, so let it scroll and shrink the big pieces */
+@media (orientation:landscape) and (max-height:500px){
+  #app:not(.in-lobby){overflow-y:auto}
+  #app:not(.in-lobby) > *{flex-shrink:0}
+  .board{width:62%;margin:0 auto}
+  .pot{margin-top:4px}
+  .me{width:78%;margin-left:auto;margin-right:auto}
+  .under{height:38px;margin-top:2px} .pie-wrap{height:20px}
+}
 @media (max-height:640px){ .under{height:38px;margin-top:2px} .pie-wrap{height:22px} .me{margin-top:8px} }

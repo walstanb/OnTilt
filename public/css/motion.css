@@ -74,4 +74,7 @@
 
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.01ms !important;animation-delay:0s !important;transition-duration:.01ms !important}
+  .hole.flung{transition:none !important}
+  /* a spinner that stops spinning looks frozen: keep it, slowly */
+  .spin{animation-duration:2.4s !important}
 }

@@ -8,7 +8,7 @@
 
 import { TURN_MS, APP_ID, TRYSTERO_URL, RELAY_URLS, TURN_CREDENTIALS_URL, TURN_SERVERS, JOIN_HINT_MS } from './config.js';
 import { MAXS, rnd, bestOf, handName, mkState, mkSeat, potTotal, startHand, endRound, applyAction, botMove, fmt,
-  isActive, removeSeat, blindsFor, tourLevelUp, tourSettle, describe, equity, HAND_NAMES } from './engine.js';
+  isActive, removeSeat, blindsFor, tourLevelUp, tourSettle, describe, equity, HAND_NAMES, nextPlace, MAX_LEVEL } from './engine.js';
 import { morph } from './morph.js';
 import { AVATARS, avatarSVG, normAv } from './avatars.js';
 import { app, short, esc, fmtCode, STAKES, EMOTES, BOTS, ICON, cardHTML, toast, LS, randomName, raiseStops } from './ui-helpers.js';
@@ -27,11 +27,48 @@ saveMe();
 // ------------------------------ runtime ------------------------------
 let isHost=false, S=null, view=null, net=null, hostPid=null, hostLost=false, tableCode=null;
 let joinIssue='';                // guest: '' | 'slow' | 'blocked' | 'offline' (why we haven't reached the host yet)
+let replaced=false;              // guest: this profile took its seat back from another tab or device
 const peers=new Map();           // host: pid -> {token,name,av}
 let timer=null, armedSeq=-1;
 const ui={ odds:{ open:false, key:'', res:null, token:0 }, raiseOpen:false, raiseTo:0, emoteOpen:false, lastTurnKey:'', lastResultsKey:'', hide:LS.get('ot-hide',false), noteN:0, finishedShown:false };
 const myPid = () => net ? net.selfId : 'local';
 const TOUR_STACK_BB = 75;        // tournament starting stack, in starting big blinds
+
+// ------------------------------ host identity ------------------------------
+// The host signs every state it sends (ECDSA P-256). Guests check it against the key fingerprint in the
+// invite link (or, for links without one, the first host key they saw), so no other player can pose as
+// the host. Guests only send their private token to a host that passed that check.
+const SIG={ name:'ECDSA', namedCurve:'P-256', hash:'SHA-256' };
+const b64 = buf => btoa(String.fromCharCode(...new Uint8Array(buf)));
+const unb64 = s => Uint8Array.from(atob(s), c=>c.charCodeAt(0));
+const utf8 = s => new TextEncoder().encode(s);
+const canSign = !!globalThis.crypto?.subtle;
+async function fingerprint(pub){ return [...new Uint8Array(await crypto.subtle.digest('SHA-256', unb64(pub)))].slice(0,8).map(b=>b.toString(16).padStart(2,'0')).join(''); }
+async function makeHostKey(){
+  if(!canSign) return null;
+  const k=await crypto.subtle.generateKey(SIG,true,['sign','verify']), pub=b64(await crypto.subtle.exportKey('raw',k.publicKey));
+  return { priv:await crypto.subtle.exportKey('jwk',k.privateKey), pub, fp:await fingerprint(pub) };
+}
+let signer=null, signQ=Promise.resolve();          // host
+async function useHostKey(hk){ signer = hk ? { key:await crypto.subtle.importKey('jwk',hk.priv,SIG,false,['sign']), pub:hk.pub } : null; }
+function sendState(pid, v){
+  const s=JSON.stringify(v);
+  if(!signer) return netSend({t:'state',s}, pid);
+  signQ=signQ.then(async()=>netSend({t:'state',s,pk:signer.pub,sig:b64(await crypto.subtle.sign(SIG,signer.key,utf8(s)))}, pid)).catch(e=>console.warn(e));
+}
+let hostFp='', verifyQ=Promise.resolve();          // guest
+const hostKeys=new Map(), introduced=new Set();
+async function verifiedState(d){
+  if(typeof d.s!=='string') return null;
+  if(!canSign) return JSON.parse(d.s);              // insecure context: nothing to check with
+  if(!d.sig || !d.pk) return null;
+  const fp=await fingerprint(d.pk);
+  if(hostFp && fp!==hostFp) return null;
+  let k=hostKeys.get(d.pk); if(!k){ k=await crypto.subtle.importKey('raw',unb64(d.pk),SIG,false,['verify']); hostKeys.set(d.pk,k); }
+  if(!await crypto.subtle.verify(SIG,k,unb64(d.sig),utf8(d.s))) return null;
+  if(!hostFp){ hostFp=fp; LS.set('ot-hk-'+tableCode, fp); }
+  return JSON.parse(d.s);
+}
 
 // ------------------------------ network ------------------------------
 async function turnServers(){
@@ -51,12 +88,12 @@ async function connect(code){
     const act = room.makeAction('m');
     net = { room, act, selfId };
     act.onMessage = (d,ctx) => onNet(d, ctx.peerId);
-    room.onPeerJoin = pid => { if(isHost) return; act.send({t:'hello',...helloData()},{target:pid}).catch(()=>{}); };
+    room.onPeerJoin = pid => { if(isHost) return; act.send({t:'hello',...publicHello()},{target:pid}).catch(()=>{}); };
     room.onPeerLeave = lost;
     if(isHost){ for(const s of S.seats) if(s&&s.token===me.token) s.pid=selfId; hostSync(); }
     else {
       // Keep saying hello until the host answers: covers lost messages and a host that opens the table after us.
-      const hi=()=>{ if(view && !hostLost) return; act.send({t:'hello',...helloData()}).catch(()=>{}); };
+      const hi=()=>{ if(view && !hostLost || replaced) return; act.send({t:'hello',...publicHello()}).catch(()=>{}); };
       hi(); setInterval(hi, 3000);
     }
   }catch(e){
@@ -66,7 +103,9 @@ async function connect(code){
     else { joinIssue='offline'; render(); toast('Could not load the peer-to-peer library', 4000); }
   }
 }
-const helloData = () => ({ token:me.token, name:me.name||'player', av:me.av });
+// Everyone in the room hears the public hello; the token (which claims a seat) only goes to the verified host.
+const publicHello = () => ({ name:me.name||'player', av:me.av });
+const helloData = () => ({ ...publicHello(), token:me.token });
 function send(d){
   if(isHost) return handle(d, myPid());
   netSend(d, hostPid || undefined);
@@ -100,29 +139,44 @@ async function hasInternet(){
 function onNet(d, pid){
   if(isHost) return handle(d, pid);
   if(d.t==='state'){
-    if(hostPid && hostPid!==pid && !hostLost) return;  // ignore impostors once connected
-    hostPid=pid; hostLost=false; joinIssue=''; setView(d.v);
+    // in order, one at a time: only states signed by this table's host get through
+    verifyQ=verifyQ.then(async()=>{
+      const v=await verifiedState(d).catch(()=>null); if(!v || replaced) return;
+      hostPid=pid; hostLost=false; joinIssue='';
+      if(!introduced.has(pid)){ introduced.add(pid); netSend({t:'hello',...helloData()}, pid); }
+      setView(v);
+    });
   } else if(d.t==='emote' && pid===hostPid) floatEmote(d.seat, d.e);
   else if(d.t==='ended' && pid===hostPid){ view=null; hostLost=true; render(); toast('The host closed the table',4000); }
+  else if(d.t==='replaced' && pid===hostPid){ replaced=true; view=null; hostLost=true; render(); }
 }
 
 // ------------------------------ host ------------------------------
 const tourOn = () => S.mode==='tourney' && S.tour;
 const tourLive = () => tourOn() && S.tour.started && !S.tour.finished;
 function note(text, sound){ S.note={ n:(S.note?.n||0)+1, text, sound }; }
+// Guest input is untrusted: tokens are opaque ids (never object keys like __proto__), avatars come from the
+// picker, names are plain text and unique at the table.
+const cleanToken = t => { t=String(t||''); return /^[\w-]{8,64}$/.test(t) && !(t in Object.prototype) ? t : ''; };
+const cleanName = n => String(n||'').replace(/[\u0000-\u001f\u007f]/g,'').trim().slice(0,14) || 'player';
+const cleanAv = a => normAv(String(a||'').slice(0,8));
+function uniqueName(name, self){
+  const taken=new Set(S.seats.filter(s=>s&&s!==self).map(s=>s.name));
+  for(let k=2, n=name; ; k++){ if(!taken.has(n)) return n; n=name.slice(0,13-String(k).length)+' '+k; }
+}
+const emoteTimes=new Map();     // seat -> recent emote times, to stop reaction spam
 
 // Remove a player for good. Cash: chips go to the ledger. Tournament in progress: they forfeit and take the next place.
 function dropSeat(i){
   const s=S.seats[i]; if(!s) return;
   if(tourLive()){
-    const left=S.seats.filter(x=>x&&x.stack>0).length;
-    S.tour.places.push({name:s.name,av:s.av,token:s.token,place:left}); S.tour.places.sort((a,b)=>a.place-b.place);
+    S.tour.places.push({name:s.name,av:s.av,token:s.token,place:nextPlace(S)}); S.tour.places.sort((a,b)=>a.place-b.place);
     removeSeat(S,i);
     if(S.seats.filter(x=>x&&x.stack>0).length<=1 && !isActive(S)) finishTour();
     return;
   }
   const cash=removeSeat(S,i);
-  if(!s.bot && S.ledger[s.token]) S.ledger[s.token].out+=cash;
+  if(!s.bot && Object.hasOwn(S.ledger,s.token)) S.ledger[s.token].out+=cash;
 }
 function finishTour(){
   const T=S.tour; if(T.finished) return;
@@ -138,28 +192,36 @@ function handle(d, pid){
   const host = pid===myPid();
   switch(d.t){
     case 'hello': {
-      const name=String(d.name||'player').slice(0,14), av=normAv(String(d.av||'').slice(0,8)), token=String(d.token||'').slice(0,64);
+      const name=cleanName(d.name), av=cleanAv(d.av), token=cleanToken(d.token)||peers.get(pid)?.token||'';
       peers.set(pid,{token,name,av});
-      for(const s of S.seats) if(s&&!s.bot&&s.token===token){ s.pid=pid; s.connected=true; s.name=name; s.av=av; }
-      if(token && S.ledger[token]) S.ledger[token].name=name;
+      if(token) for(const s of S.seats) if(s&&!s.bot&&s.token===token){
+        // the same player opened the table again (new tab or device): the old connection steps aside
+        if(s.pid && s.pid!==pid && s.pid!==myPid() && peers.has(s.pid)){ netSend({t:'replaced'}, s.pid); peers.delete(s.pid); }
+        s.pid=pid; s.connected=true; s.name=uniqueName(name,s); s.av=av;
+        if(Object.hasOwn(S.ledger,token)) S.ledger[token].name=s.name;
+      }
       S.seq++; break;
     }
     case 'sit': {
       const k=d.seat|0; if(i>=0 || k<0 || k>=MAXS || S.seats[k]) return;
       if(tourOn() && S.tour.started) return;                       // no late entries
       const p = host ? {token:me.token,name:me.name||'host',av:me.av} : peers.get(pid);
-      if(!p) return;
+      if(!p || !p.token) return;
       if(S.seats.some(s=>s&&!s.bot&&s.token===p.token)) return;
-      const stack = tourOn() ? S.tour.stack : S.buyIn;
-      S.seats[k]=mkSeat({...p, pid, stack});
-      if(!tourOn()){ const L=S.ledger[p.token] ||= {name:p.name,buy:0,out:0}; L.buy+=stack; }
-      note(`${p.name} sat down`,'join');
+      const stack = tourOn() ? S.tour.stack : S.buyIn, name=uniqueName(p.name);
+      S.seats[k]=mkSeat({...p, name, pid, stack});
+      if(!tourOn()){ const L=Object.hasOwn(S.ledger,p.token) ? S.ledger[p.token] : (S.ledger[p.token]={name,buy:0,out:0}); L.name=name; L.buy+=stack; }
+      note(`${name} sat down`,'join');
       S.seq++; break;
     }
     case 'act': if(i<0 || !applyAction(S,i,String(d.a),d.amt)) return; S.seq++; break;
-    case 'emote': if(i<0 || !EMOTES.includes(d.e)) return; broadcastEmote(i,d.e); return;
+    case 'emote': { if(i<0 || !EMOTES.includes(d.e)) return;
+      const now=Date.now(), recent=(emoteTimes.get(i)||[]).filter(t=>now-t<4000);
+      if(recent.length>=3) return;                                   // at most 3 reactions per 4 seconds
+      emoteTimes.set(i,[...recent,now]); broadcastEmote(i,d.e); return; }
     case 'rebuy': { const s=S.seats[i]; if(i<0||tourOn()||s.stack>0||s.inHand&&isActive(S)) return;
-      s.stack=S.buyIn; S.ledger[s.token].buy+=S.buyIn; S.seq++; break; }
+      s.stack=S.buyIn; if(Object.hasOwn(S.ledger,s.token)) S.ledger[s.token].buy+=S.buyIn; S.seq++; break; }
+    case 'sitout': { if(i<0 || tourOn()) return; S.seats[i].sittingOut=!!d.on; S.seq++; break; }
     case 'stand': if(i<0) return; dropSeat(i); S.seq++; break;
     case 'show': {   // reveal your cards to everyone when the hand ends (folded players, uncalled winners)
       const s=S.seats[i]; if(i<0 || s.bot || !s.cards.length || s.show || S.results?.reveal?.[i]) return;
@@ -172,11 +234,12 @@ function handle(d, pid){
     case 'tstart': { if(!host||!tourOn()||S.tour.started) return;
       if(S.seats.filter(Boolean).length<2){ toast('Need at least 2 players'); return; }
       const T=S.tour; T.started=true; T.finished=false; T.level=0; T.places=[]; T.levelEnds=Date.now()+T.levelMs;
+      T.entrants=S.seats.filter(Boolean).length;
       [S.sb,S.bb]=blindsFor(T.baseSb,0); S.dealer=-1; S.handNo=0; S.log=[];
       for(const s of S.seats) if(s) s.stack=T.stack;
       note('Shuffle up and deal!','level'); S.seq++; break; }
     case 'treset': { if(!host||!tourOn()||!S.tour.finished) return;
-      Object.assign(S.tour,{started:false,finished:false,level:0,places:[]}); [S.sb,S.bb]=blindsFor(S.tour.baseSb,0);
+      Object.assign(S.tour,{started:false,finished:false,level:0,places:[]}); delete S.tour.entrants; [S.sb,S.bb]=blindsFor(S.tour.baseSb,0);
       S.street='idle'; S.results=null; S.board=[];
       for(const s of S.seats) if(s) s.stack=S.tour.stack;
       S.seq++; break; }
@@ -229,27 +292,33 @@ function viewFor(pid){
   const R=S.results, T=S.tour;
   const seats=S.seats.map((s,i)=>s&&{
     name:s.name, av:s.av, stack:s.stack, bet:s.bet, folded:s.folded, allIn:s.allIn, inHand:s.inHand, bot:s.bot,
-    connected:s.connected||s.bot, leaving:s.leaving, last:s.last, noReraise:s.noReraise,
-    cards: i===mySeat ? s.cards : (R&&R.reveal[i]) ? R.reveal[i] : (R&&s.show&&s.cards.length) ? s.cards : (s.inHand&&!s.folded&&s.cards.length ? ['back','back'] : null),
+    connected:s.connected||s.bot, leaving:s.leaving, last:s.last, acts:s.acts||0, noReraise:s.noReraise, sittingOut:!!s.sittingOut,
+    cards: i===mySeat ? [...s.cards] : (R&&R.reveal[i]) ? R.reveal[i] : (R&&s.show&&s.cards.length) ? s.cards : (s.inHand&&!s.folded&&s.cards.length ? ['back','back'] : null),
     show:!!s.show, shownHand: R&&s.show&&!R.reveal[i]&&s.cards.length ? handName(bestOf([...s.cards,...S.board])) : '',
   });
+  // mid-hand, chips a player has bet are still theirs until the hand is settled
   const ledger=Object.entries(S.ledger).map(([tok,L])=>{ const s=S.seats.find(x=>x&&x.token===tok);
-    return {name:L.name, buy:L.buy, net:L.out+(s?s.stack:0)-L.buy, seated:!!s}; });
+    return {name:L.name, buy:L.buy, net:L.out+(s?s.stack+(isActive(S)?s.total:0):0)-L.buy, seated:!!s}; });
   const myToken = pid===myPid() ? me.token : peers.get(pid)?.token;
-  return { table:S.table, mode:S.mode, sb:S.sb, bb:S.bb, buyIn:S.buyIn, minBuy:S.minBuy, seats, dealer:S.dealer, board:S.board,
-    pot:potTotal(S)-S.seats.reduce((a,s)=>a+(s?s.bet:0),0), street:S.street, toAct:S.toAct, curBet:S.curBet, minRaise:S.minRaise,
+  // board is copied: the host's own previous view must not change when the engine deals the next card
+  return { table:S.table, mode:S.mode, sb:S.sb, bb:S.bb, buyIn:S.buyIn, minBuy:S.minBuy, seats, dealer:S.dealer, board:[...S.board],
+    pot:potTotal(S), street:S.street, toAct:S.toAct, curBet:S.curBet, minRaise:S.minRaise,
     turnLeft:S.turnEnd?Math.max(0,S.turnEnd-Date.now()):0, turnTotal:S.turnTotal, mySeat, results:R, handNo:S.handNo, ledger,
     log:(S.log||[]).slice(0,15), note:S.note||null,
     tour: T && { started:T.started, finished:T.finished, level:T.level, stack:T.stack, levelMs:T.levelMs,
-      levelLeft:T.started&&!T.finished?Math.max(0,T.levelEnds-Date.now()):0, next:blindsFor(T.baseSb,T.level+1), places:T.places,
+      levelLeft:T.started&&!T.finished&&T.level<MAX_LEVEL?Math.max(0,T.levelEnds-Date.now()):0, finalLevel:T.level>=MAX_LEVEL,
+      next:blindsFor(T.baseSb,T.level+1), places:T.places.map(({name,av,place})=>({name,av,place})),
       myPlace:(T.places.find(p=>p.token===myToken)||{}).place||0 },
     isHost: pid===myPid() };
 }
+let closed=false;
+function saveHost(){ if(!isHost || !S || closed) return; S.savedAt=Date.now(); LS.set('pp-host-'+S.table, S); }
+// keep the saved clock fresh, so reopening a tournament only adds back the time the table was really closed
+setInterval(saveHost, 5000); addEventListener('pagehide', saveHost);
 function hostSync(){
   schedule();
-  S.savedAt=Date.now();
-  LS.set('pp-host-'+S.table, S);
-  for(const pid of peers.keys()) netSend({t:'state',v:viewFor(pid)}, pid);
+  saveHost();
+  for(const pid of peers.keys()) sendState(pid, viewFor(pid));
   setView(viewFor(myPid()));
 }
 function broadcastEmote(seat,e){
@@ -279,8 +348,11 @@ function cueSounds(prev, v, myTurn){
   if(!prev) return;
   if(v.handNo!==prev.handNo && v.street==='preflop'){ play('deal'); setTimeout(()=>play('deal'),120); }
   else if(v.board.length>prev.board.length) play('flip');
+  // a new action shows as a new label or a higher action count (calling twice in a round is still a call).
+  // Your own taps already played their sound; actions the shot clock took for you haven't.
   if(v.handNo===prev.handNo) v.seats.forEach((s,i)=>{ const p=prev.seats[i];
-    if(s && p && s.last!==p.last && s.last){ const m={Fold:'fold',Check:'check',Call:'chip',Bet:'chips',Raise:'chips','All in':'allin'}[s.last]; if(m && i!==v.mySeat) play(m); } });
+    if(s && p && s.last && (s.last!==p.last || s.acts!==p.acts)){ const m={Fold:'fold',Check:'check',Call:'chip',Bet:'chips',Raise:'chips','All in':'allin'}[s.last];
+      if(m && !(i===v.mySeat && ui.selfCue===v.handNo+':'+s.acts)) play(m); } });
   const wasTurn = prev.mySeat>=0 && prev.toAct===prev.mySeat && isActive(prev);
   if(myTurn && !wasTurn) play('turn');
   if(v.results && !prev.results){
@@ -317,9 +389,14 @@ function paint(html){
   } else morph(app, html);
 }
 const brand = sub => `<div class="brand"><span class="wm">${LOGO}<span>On<b>Tilt</b></span></span>${sub?`<small>${sub}</small>`:''}</div>`;
-// Logo mark: a spade card knocked off-square in front of a straight one. Same art as assets/favicon.svg.
-const LOGO = `<svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><rect x="7" y="6" width="13" height="20" rx="2.6" fill="none" stroke="#5d5d63" stroke-width="2"/><g transform="rotate(16 18.5 16)"><rect x="11" y="5" width="15" height="22" rx="3" fill="#000"/><rect x="12" y="6" width="13" height="20" rx="2.6" fill="#cde8c6"/><path d="M18.5 10.6c-2.1 2.1-4 3.4-4 5.2a2.1 2.1 0 0 0 3.5 1.5l-.8 2.3h2.6l-.8-2.3a2.1 2.1 0 0 0 3.5-1.5c0-1.8-1.9-3.1-4-5.2z" fill="#000"/></g></svg>`;
+// Logo mark: a spade card knocked off-square in front of a straight one. Same art as assets/favicon.svg,
+// except the straight card is masked where the tilted one covers it, so no black edge shows on grey panels.
+const LOGO = `<svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><mask id="lm"><rect width="32" height="32" fill="#fff"/><rect x="11" y="5" width="15" height="22" rx="3" transform="rotate(16 18.5 16)"/></mask><rect x="7" y="6" width="13" height="20" rx="2.6" fill="none" stroke="#5d5d63" stroke-width="2" mask="url(#lm)"/><g transform="rotate(16 18.5 16)"><rect x="12" y="6" width="13" height="20" rx="2.6" fill="#cde8c6"/><path d="M18.5 10.6c-2.1 2.1-4 3.4-4 5.2a2.1 2.1 0 0 0 3.5 1.5l-.8 2.3h2.6l-.8-2.3a2.1 2.1 0 0 0 3.5-1.5c0-1.8-1.9-3.1-4-5.2z" fill="#000"/></g></svg>`;
 const mmss = ms => { const s=Math.ceil(ms/1000); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); };
+// blinds go up between hands, so once the clock runs out they rise when this hand ends
+const lvlLeft = ms => ms>0 ? mmss(ms) : 'up next hand';
+// big numbers get abbreviated where space is tight (seats, chips)
+const amt = n => n>=1e5 ? short(n) : fmt(n);
 
 function savedTables(){
   const out=[];
@@ -342,7 +419,7 @@ function renderLobby(){
     const savedHTML = `<div class="saved"><div class="saved-h"><span>Your tables</span></div>
       ${saved.map(t=>`<div class="srow"><button class="sgo" data-act="resume" data-v="${t.code}">
           <b>${t.mode==='tourney'?'Tournament':'Cash'} · ${fmt(t.sb)}/${fmt(t.bb)}</b>
-          <span>${esc(t.players.slice(0,4).join(', ')||'No players')}${t.players.length>4?'…':''} · ${t.hands} hands · ${ago(t.at)}${t.done?' · finished':''}</span></button>
+          <span>${esc(t.players.slice(0,4).join(', ')||'No players')}${t.players.length>4?'…':''} · ${t.hands} hand${t.hands===1?'':'s'} · ${ago(t.at)}${t.done?' · finished':''}</span></button>
           <button class="sdel" data-act="forget" data-v="${t.code}" aria-label="Delete saved table">${ICON.x}</button></div>`).join('')
         || `<p class="none">Tables you host are saved on this device so you can pick them up later.</p>`}</div>`;
     paint(`<div class="lobby">
@@ -354,7 +431,7 @@ function renderLobby(){
           ? `<div class="lbl">Starting stack</div><div class="big">${fmt(bb*TOUR_STACK_BB)}</div>
              <div class="seg sm">${SPEEDS.map(([n,m],k)=>`<button data-act="speed" data-v="${k}" class="${k===lobby.speed?'sel':''}">${n} · ${m} min</button>`).join('')}</div>`
           : `<div class="lbl">Buy-in</div><div class="big">${short(bb*20)} / ${short(bb*100)}</div>`}
-        <div class="ruler" id="ruler">${STAKES.map((_,i)=>`<i class="${i===lobby.stake?'sel':''}"></i>`).join('')}</div>
+        <div class="ruler" id="ruler" role="slider" tabindex="0" aria-label="${tour?'Starting blinds':'Stakes'}" aria-valuemin="0" aria-valuemax="${STAKES.length-1}" aria-valuenow="${lobby.stake}" aria-valuetext="${sb} / ${bb}">${STAKES.map((_,i)=>`<i class="${i===lobby.stake?'sel':''}"></i>`).join('')}</div>
       </div>
       <div class="side">
         ${prof}
@@ -366,10 +443,11 @@ function renderLobby(){
       </div>
     </div>`);
     const ruler=document.getElementById('ruler');
-    const pick=e=>{ const r=ruler.getBoundingClientRect(); const x=(e.clientX-r.left)/r.width;
-      const k=Math.max(0,Math.min(STAKES.length-1,Math.round(x*(STAKES.length-1)))); if(k!==lobby.stake){ lobby.stake=k; readName(); renderLobby(); play('tick'); } };
+    const setStake=k=>{ k=Math.max(0,Math.min(STAKES.length-1,k)); if(k!==lobby.stake){ lobby.stake=k; readName(); renderLobby(); play('tick'); } };
+    const pick=e=>{ const r=ruler.getBoundingClientRect(); setStake(Math.round((e.clientX-r.left)/r.width*(STAKES.length-1))); };
     ruler.onpointerdown=e=>{ ruler.setPointerCapture(e.pointerId); pick(e); ruler.onpointermove=pick; };
     ruler.onpointerup=()=>{ ruler.onpointermove=null; };
+    ruler.onkeydown=e=>{ const d={ArrowLeft:-1,ArrowDown:-1,ArrowRight:1,ArrowUp:1}[e.key]; if(d){ e.preventDefault(); setStake(lobby.stake+d); } };
   } else {
     paint(`<div class="lobby">
       <div class="panel join">
@@ -397,7 +475,7 @@ function renderTable(prev){
   const v=view;
   const T=v?.tour;
   let sub='';
-  if(T && T.started && !T.finished) sub=`Level ${T.level+1} · ${fmt(v.sb)}/${fmt(v.bb)} · <span data-lvl>${mmss(T.levelLeft)}</span>`;
+  if(T && T.started && !T.finished) sub=`Level ${T.level+1} · ${fmt(v.sb)}/${fmt(v.bb)} · ${T.finalLevel?'final level':`<span data-lvl>${lvlLeft(T.levelLeft)}</span>`}`;
   else if(T) sub = T.finished ? 'Tournament over' : 'Tournament · registering';
   else if(v) sub=`Blinds ${fmt(v.sb)}/${fmt(v.bb)}`;
   const head=`<div class="top"><button class="ico" data-act="leave" aria-label="Leave">${ICON.back}</button>
@@ -410,7 +488,7 @@ function renderTable(prev){
     return;
   }
   if(!v){
-    const why = {
+    const why = replaced ? `This table is open in another tab or device.<br><span class="sub">Keep playing there, or reload here to move back.</span>` : {
       nolan:`You’re offline.<br><span class="sub">Ask the host to open ••• → Show QR code, then scan it with your phone camera. You both need the same Wi-Fi.</span>`,
       slow:`Still looking for the host…<br><span class="sub">Make sure the host has this table open in a browser tab and their screen is on.</span>`,
       blocked:`Found the host, but your networks won’t connect directly.<br><span class="sub">Try another network (Wi-Fi ↔ mobile data).</span>`,
@@ -445,8 +523,8 @@ function renderTable(prev){
   const myTurn = seated && v.toAct===v.mySeat && active;
   let ctrl='', raisePanel='', betChip='';
   const wide = msg => `<div class="ctrl"><button class="btn wide" disabled>${msg}</button></div>`;
-  if(mine && mine.bet>0) betChip=`<span class="chip" data-k="b${mine.bet}">${fmt(mine.bet)}</span>`;
-  if(R && seated && R.won[v.mySeat]) betChip=`<span class="chip win" data-k="w">+${fmt(R.won[v.mySeat])}</span>`;
+  if(mine && mine.bet>0) betChip=`<span class="chip" data-k="b${mine.bet}">${amt(mine.bet)}</span>`;
+  if(R && seated && R.won[v.mySeat]) betChip=`<span class="chip win" data-k="w">+${amt(R.won[v.mySeat])}</span>`;
   const seatedN=v.seats.filter(Boolean).length;
   if(T && T.finished){
     ctrl = v.isHost ? `<div class="ctrl" style="grid-template-columns:1fr 1fr"><button class="btn on" data-act="standings">Standings</button><button class="btn solid" data-act="treset">Run it back</button></div>`
@@ -461,6 +539,8 @@ function renderTable(prev){
     ctrl=`<div class="ctrl" style="grid-template-columns:1fr 1fr"><button class="btn on" data-act="rebuy">Rebuy ${short(v.buyIn)}</button><button class="btn on" data-act="stand">Stand up</button></div>`;
   } else if(R && mine.inHand && v.street==='showdown' && !R.reveal[v.mySeat] && mine.cards?.length){
     ctrl = mine.show ? wide('Cards shown') : `<div class="ctrl"><button class="btn on wide" data-act="show">Show your cards</button></div>`;
+  } else if(mine.sittingOut && !(mine.inHand&&active)){
+    ctrl=`<div class="ctrl"><button class="btn on wide" data-act="sitin">Sitting out · I’m back</button></div>`;
   } else if(!mine.inHand || !active){
     ctrl = wide(active?'Wait for the next hand': v.street==='showdown'?'Next hand…': seatedN>1? 'Starting…':'Waiting for players');
   } else {
@@ -483,15 +563,16 @@ function renderTable(prev){
 
     if(myTurn && ui.raiseOpen && canRaise && minTo<maxTo){
       if(ui.raiseTo<minTo||ui.raiseTo>maxTo) ui.raiseTo=minTo;
-      const potNow=v.pot+v.seats.reduce((a,s)=>a+(s?s.bet:0),0);
-      const half=Math.min(maxTo,Math.max(minTo,Math.round(v.curBet+(potNow+toCall)/2)));
-      const full=Math.min(maxTo,Math.max(minTo,v.curBet+potNow+toCall));
+      // pot-sized raises, rounded to the small blind
+      const unit=x=>Math.round(x/v.sb)*v.sb;
+      const half=Math.min(maxTo,Math.max(minTo,unit(v.curBet+(v.pot+toCall)/2)));
+      const full=Math.min(maxTo,Math.max(minTo,unit(v.curBet+v.pot+toCall)));
       raiseStops_=raiseStops(minTo,maxTo,v.sb,[half,full]);
       ui.raiseTo=raiseStops_.reduce((a,b)=>Math.abs(b-ui.raiseTo)<Math.abs(a-ui.raiseTo)?b:a);
       const k=raiseStops_.indexOf(ui.raiseTo), sel=x=>x===ui.raiseTo?'sel':'';
       // a tick ruler like the lobby's stake picker: one tick per stop, pot presets taller, all-in red
       raisePanel=`<div class="raise"><span class="amt"><small>Raise to</small><b id="ramt">${fmt(ui.raiseTo)}</b></span>
-        <div class="rruler" id="rr" role="slider" tabindex="0" aria-label="Raise amount" aria-valuemin="${minTo}" aria-valuemax="${maxTo}" aria-valuenow="${ui.raiseTo}">${
+        <div class="rruler" id="rr" role="slider" tabindex="0" aria-label="Raise amount" aria-valuemin="${minTo}" aria-valuemax="${maxTo}" aria-valuenow="${ui.raiseTo}" aria-valuetext="${fmt(ui.raiseTo)}">${
           raiseStops_.map((x,i)=>`<i class="${i<k?'on':i===k?'sel':''} ${x===half||x===full?'key':''}"></i>`).join('')}</div>
         <button class="go" data-act="raiseGo" aria-label="Raise">${ICON.up}</button></div>`;
       ctrl=`<div class="ctrl" style="grid-template-columns:1fr 1fr 1fr .55fr">
@@ -521,12 +602,14 @@ function renderTable(prev){
       <div class="hn">${esc(hn)}</div>
       ${seated?`<button class="av" data-act="odds" aria-label="Your odds">`:'<div class="av">'}${avatarSVG(a.av)}${v.dealer===anchor&&v.handNo?'<b class="d">D</b>':''}${seated?'</button>':'</div>'}
       ${seated && ui.odds.open ? oddsHTML() : ''}
-      <div class="st">${fmt(a.stack)}${chipViz(a.stack,maxStack)}</div>
+      <div class="st">${a.stack>=1e6?short(a.stack):fmt(a.stack)}${chipViz(a.stack,maxStack)}</div>
       ${seated?`<button class="smile" data-act="emote" aria-label="Reactions">${ICON.smile}</button>`:''}</div>`;
   } else {
     box=`<div class="hand"><div class="hn">Open seat</div><button class="plus" data-k="plus" data-act="sit" data-i="${anchor}" ${seated?'disabled':''}></button><div class="hn"></div></div>`;
   }
-  const holeEl=`<div class="hole ${mine&&mine.folded?'folded':''} ${holeCards?'mine':''}" id="hole">${hole}</div>`;
+  const flung = mine && mine.folded && ui.flung===v.handNo;   // swiped away: stays thrown until the next hand
+  const holeEl=`<div class="hole ${mine&&mine.folded?'folded':''} ${flung?'flung':''} ${holeCards?'mine':''}" id="hole"${holeCards?
+    ` role="button" tabindex="0" aria-label="Your cards: ${hidden?'hidden, press to show':esc(holeCards.join(' '))+', press to hide'}"`:''}>${hole}</div>`;
   const swipeFold = myTurn && mine && !mine.folded && !mine.allIn && holeCards;
   const meRow=`<div class="me">${holeEl}${box}</div>`;
 
@@ -624,17 +707,18 @@ function seatHTML(v,i,seated,maxStack){
   let under='';
   const shown = R && (R.reveal[i] || (s.show && s.cards && s.cards[0]!=='back' ? s.cards : null));
   const lit = R && R.best && R.best[(R.pots?.[0]?.winners||[])[0]] ? new Set(R.best[R.pots[0].winners[0]]) : null;
-  if(shown) under = `<div class="rv"><div class="rvc">${shown.map(c=>cardHTML(c,`mini ${lit&&!lit.has(c)?'dimc':''}`)).join('')}${R.won[i]?`<span class="chip win" data-k="w" style="margin-left:2px">+${short(R.won[i])}</span>`:''}</div>
+  // shown cards with winnings: the chip sits on the cards so the pair fits the seat's column
+  if(shown) under = `<div class="rv"><div class="rvc shown">${shown.map(c=>cardHTML(c,`mini ${lit&&!lit.has(c)?'dimc':''}`)).join('')}${R.won[i]?`<span class="chip win over" data-k="w">+${short(R.won[i])}</span>`:''}</div>
       <div class="shand ${R.won[i]?'w':''}">${esc(R.hands[i] || (s.shownHand ? s.shownHand+' · shown' : ''))}</div></div>`;
-  else if(R && R.won[i]) under=`<span class="chip win" data-k="w">+${fmt(R.won[i])}</span>`;
-  else if(s.bet>0) under=`<span class="chip" data-k="b${s.bet}">${fmt(s.bet)}</span>`;
+  else if(R && R.won[i]) under=`<span class="chip win" data-k="w">+${amt(R.won[i])}</span>`;
+  else if(s.bet>0) under=`<span class="chip" data-k="b${s.bet}">${amt(s.bet)}</span>`;
   else if(s.allIn && active) under=`<span class="tag">ALL IN</span>`;
   else if(active && s.last==='Check') under=`<span class="tag" style="color:#6d6d72">CHECK</span>`;
   const turn = v.toAct===i && active;
   return `<div class="seat ${dim?'dim':''} ${turn?'turn':''}">
     <div class="pie-wrap">${turn?'<div class="pie" data-timer></div>':''}</div>
-    <button class="av" data-k="av${esc(s.name)}" data-act="seatTap" data-i="${i}" data-seat-av="${i}">${avatarSVG(s.av)}${v.dealer===i&&v.handNo?'<b class="d">D</b>':''}</button>
-    <div class="nm">${esc(s.name)}</div><div class="st">${fmt(s.stack)}${chipViz(s.stack,maxStack)}</div>
+    <button class="av" data-k="av${esc(s.name)}" data-act="seatTap" data-i="${i}" data-seat-av="${i}" aria-label="${esc(s.name)}, ${fmt(s.stack)} chips${s.bot?', bot':''}${!s.connected?', disconnected':''}">${avatarSVG(s.av)}${v.dealer===i&&v.handNo?'<b class="d">D</b>':''}</button>
+    <div class="nm">${esc(s.name)}</div><div class="st">${amt(s.stack)}${chipViz(s.stack,maxStack)}</div>
     <div class="under">${under}</div></div>`;
 }
 
@@ -667,7 +751,7 @@ function bindHole(canFold){
   h.onpointerup=h.onpointercancel=e=>{
     if(!drag.on) return;
     const { dy, moved, t0 }=drag; drag.on=false; drag.dy=0;
-    if(canFold && dy>FOLD_PX && e.type==='pointerup'){ h.classList.remove('drag'); h.classList.add('flung'); play('fold'); send({t:'act',a:'fold'}); return; }
+    if(canFold && dy>FOLD_PX && e.type==='pointerup'){ h.classList.remove('drag'); h.classList.add('flung'); ui.flung=view.handNo; doAction('fold'); return; }
     dragLook(h);
     if(e.type==='pointerup' && !moved && performance.now()-t0<450) toggleHide();
   };
@@ -682,9 +766,11 @@ let lastSec=-1;
     if(view.turnLeft>0){
       const left=Math.max(0,view.turnLeft-el), p=(left/view.turnTotal).toFixed(4);
       document.querySelectorAll('[data-timer]').forEach(e=>e.style.setProperty('--p',p));
+      // warn once when your own shot clock is about to run out
+      if(left<=5000 && left>0 && view.turnTotal>5000 && view.toAct===view.mySeat && view.mySeat>=0 && ui.warned!==ui.lastTurnKey){ ui.warned=ui.lastTurnKey; play('warn'); }
     }
     if(view.tour?.levelLeft){ const sec=Math.ceil(Math.max(0,view.tour.levelLeft-el)/1000);
-      if(sec!==lastSec){ lastSec=sec; const n=document.querySelector('[data-lvl]'); if(n) n.textContent=mmss(sec*1000); } }
+      if(sec!==lastSec){ lastSec=sec; const n=document.querySelector('[data-lvl]'); if(n) n.textContent=lvlLeft(sec*1000); } }
   }
   requestAnimationFrame(tick);
 })();
@@ -741,29 +827,42 @@ function runFx(fx, prev, v){
 }
 
 // ------------------------------ sheets ------------------------------
+let sheetN=0;
 function sheet(title, text, buttons, cls=''){
-  const bg=document.createElement('div'); bg.className='sheet-bg';
-  bg.innerHTML=`<div class="sheet ${cls}"><h3>${esc(title)}</h3>${text?`<div class="sheet-body">${text}</div>`:''}${buttons.map((b,k)=>`<button class="sb ${b.cls||''}" data-k="${k}">${esc(b.label)}</button>`).join('')}
+  const bg=document.createElement('div'); bg.className='sheet-bg'; const id='sh'+(++sheetN);
+  bg.opener=document.activeElement;
+  bg.innerHTML=`<div class="sheet ${cls}" role="dialog" aria-modal="true" aria-labelledby="${id}" tabindex="-1"><h3 id="${id}">${esc(title)}</h3>${text?`<div class="sheet-body">${text}</div>`:''}${buttons.map((b,k)=>`<button class="sb ${b.cls||''}" data-k="${k}">${esc(b.label)}</button>`).join('')}
     <button class="sb" data-k="x" style="background:transparent;color:var(--mut)">Close</button></div>`;
   bg.onclick=e=>{ const t=e.target.closest('[data-k]'), k=t?.dataset.k; if(e.target===bg||k==='x'){ closeSheet(bg); return; }
     if(k!=null){ closeSheet(bg); buttons[+k].fn?.(); } };
+  // keep Tab inside the sheet while it's open
+  bg.addEventListener('keydown', e=>{ if(e.key!=='Tab') return;
+    const f=[...bg.querySelectorAll('button:not(:disabled),[href],input,[tabindex]:not([tabindex="-1"])')]; if(!f.length) return;
+    const first=f[0], last=f[f.length-1];
+    if(e.shiftKey && (document.activeElement===first || !bg.contains(document.activeElement))){ e.preventDefault(); last.focus(); }
+    else if(!e.shiftKey && document.activeElement===last){ e.preventDefault(); first.focus(); } });
   document.body.appendChild(bg);
+  bg.querySelector('.sheet').focus({preventScroll:true});
   return bg;
 }
-function closeSheet(bg){ if(bg.classList.contains('closing')) return; bg.classList.add('closing'); bg.onClose?.(); setTimeout(()=>bg.remove(),180); }
-function inviteUrl(){ return location.origin+location.pathname+'#'+(tableCode||lobby.code); }
+function closeSheet(bg){ if(bg.classList.contains('closing')) return; bg.classList.add('closing'); bg.onClose?.(); setTimeout(()=>bg.remove(),180);
+  const o=bg.opener; if(o && o.isConnected && o!==document.body && !document.querySelector('.sheet-bg:not(.closing)')) o.focus({preventScroll:true}); }
+// The invite carries the host key's fingerprint (#1234567.<fp>) so guests can tell the real host apart.
+function inviteUrl(){ const fp=isHost||screen==='lobby' ? lobbyKey?.fp : hostFp; return location.origin+location.pathname+'#'+(tableCode||lobby.code)+(fp?'.'+fp:''); }
 async function shareInvite(){
   const url=inviteUrl();
   if(navigator.share){ try{ await navigator.share({title:'OnTilt',text:`Join my OnTilt poker table`,url}); return; }catch(e){ if(e.name==='AbortError') return; } }
   copyInvite();
 }
 async function copyInvite(){
+  await lobbyKeyP;
   try{ await navigator.clipboard.writeText(inviteUrl()); toast('Invite link copied'); }
   catch{ sheet('Invite link', `<p class="sel-text">${esc(inviteUrl())}</p>`, []); }
 }
 async function qrSheet(forceOnline){
   // Hosts without internet go straight to nearby (LAN) pairing
   if(isHost && !forceOnline && !(await hasInternet())) return lanSheet();
+  await lobbyKeyP;
   const url=inviteUrl();
   const bg=sheet('Scan to join', `<div class="qr"><div class="qr-box"><div class="spin"></div></div><p>Point a phone camera here to join table ${fmtCode(tableCode||lobby.code)}.</p></div>`,
     [{label:'Copy link',fn:copyInvite}, ...(isHost?[{label:'No internet? Pair nearby',fn:lanSheet}]:[])], 'qr-sheet');
@@ -786,6 +885,7 @@ async function lanSheet(){
   const fresh=async()=>{
     try{
       lanPending=await makeOffer();
+      await lobbyKeyP;
       const box=bg.querySelector('#lanqr'); if(box) box.innerHTML=await qrSVG(inviteUrl()+'~'+lanPending.code);
     }catch(e){ console.warn(e); const box=bg.querySelector('#lanqr'); if(box) box.innerHTML='<p>Couldn’t find a local network. Connect to Wi-Fi or turn on your hotspot.</p>'; }
   };
@@ -814,7 +914,7 @@ async function startLanGuest(offer){
   try{
     const g=await answerOffer(offer);
     wire('lan-host', g.ch, g.pc);
-    const hi=()=>{ if(view && !hostLost) return; netSend({t:'hello',...helloData()}, 'lan-host'); };
+    const hi=()=>{ if(view && !hostLost || replaced) return; netSend({t:'hello',...publicHello()}, 'lan-host'); };
     g.ch.addEventListener('open', ()=>{ hi(); setInterval(hi, 3000); lan.show=false; render(); });
     lan.reply='OTA:'+g.code; lan.svg=await qrSVG(lan.reply);
     if(!lan.online) lan.show=true;
@@ -825,15 +925,15 @@ async function startLanGuest(offer){
 
 function ledgerSheet(){
   const rows=(view?.ledger||[]).map(L=>`<tr><td>${esc(L.name)}${L.seated?'':' <span style="color:var(--mut)">(left)</span>'}</td><td>${fmt(L.buy)}</td><td class="${L.net>0?'pos':L.net<0?'neg':''}">${L.net>0?'+':''}${fmt(L.net)}</td></tr>`).join('');
-  sheet('Ledger', `<table class="ledger"><tr><th>Player</th><th>Bought in</th><th>Net</th></tr>${rows||'<tr><td colspan=3>No buy-ins yet</td></tr>'}</table>`, []);
+  sheet('Ledger', `<table class="ledger"><tr><th>Player</th><th>Buy-ins</th><th>Net</th></tr>${rows||'<tr><td colspan=3>No buy-ins yet</td></tr>'}</table>`, []);
 }
 function standingsSheet(){
   const T=view?.tour; if(!T) return;
   const alive=view.seats.filter(Boolean).filter(s=>s.stack>0).sort((a,b)=>b.stack-a.stack);
   const medal=p=>['🥇','🥈','🥉'][p-1]||`#${p}`;
   const rows = T.finished ? T.places : [...alive.map((s,k)=>({name:s.name,av:s.av,place:k+1,stack:s.stack})), ...T.places];
-  const html=`<table class="ledger"><tr><th>Place</th><th>Player</th><th>${T.finished?'':'Chips'}</th></tr>
-    ${rows.map(p=>`<tr><td>${T.finished||p.stack==null?medal(p.place):p.place}</td><td>${avatarSVG(p.av)}${esc(p.name)}</td><td>${p.stack!=null?fmt(p.stack):p.stack===undefined&&!T.finished?'out':''}</td></tr>`).join('')||'<tr><td colspan=3>No players yet</td></tr>'}</table>`;
+  const html=`<table class="ledger standings"><tr><th>Place</th><th>Player</th>${T.finished?'':'<th>Chips</th>'}</tr>
+    ${rows.map(p=>`<tr><td class="${T.finished||p.stack==null?'medal':''}">${T.finished||p.stack==null?medal(p.place):p.place}</td><td>${avatarSVG(p.av)}${esc(p.name)}</td>${T.finished?'':`<td>${p.stack!=null?fmt(p.stack):'out'}</td>`}</tr>`).join('')||`<tr><td colspan=${T.finished?2:3}>No players yet</td></tr>`}</table>`;
   const w=T.finished && T.places.find(p=>p.place===1);
   sheet(w?`🏆 ${w.name} wins!`:'Standings', html, view.isHost&&T.finished?[{label:'Run it back',cls:'primary',fn:()=>send({t:'treset'})}]:[]);
 }
@@ -898,14 +998,14 @@ app.addEventListener('click', e=>{
       if(v.isHost && s && i!==v.mySeat) sheet(s.name, s.bot?'This seat is a bot.': v.tour?.started ? 'Remove this player? They forfeit the tournament.' : 'Remove this player from the table? Their chips are cashed out in the ledger.',
         [{label:s.bot?'Remove bot':'Remove player',cls:'danger',fn:()=>send({t:'kick',seat:i})}]);
       break; }
-    case 'fold': play('fold'); send({t:'act',a:'fold'}); break;
-    case 'check': play('check'); send({t:'act',a:'check'}); break;
-    case 'call': play('chip'); send({t:'act',a:'call'}); break;
-    case 'raiseMin': play('chips'); send({t:'act',a:'raise',amt:+b.dataset.v}); break;
+    case 'fold': doAction('fold'); break;
+    case 'check': doAction('check'); break;
+    case 'call': doAction('call'); break;
+    case 'raiseMin': doAction('raise',+b.dataset.v); break;
     case 'raiseOpen': ui.raiseOpen=true; ui.raiseTo=0; play('tick'); render(); break;
     case 'raiseClose': ui.raiseOpen=false; render(); break;
     case 'preset': ui.raiseTo=+b.dataset.v; play('tick'); render(); break;
-    case 'raiseGo': ui.raiseOpen=false; play('chips'); send({t:'act',a:'raise',amt:ui.raiseTo}); break;
+    case 'raiseGo': ui.raiseOpen=false; doAction('raise',ui.raiseTo); break;
     case 'emote': ui.emoteOpen=true; render(); break;
     case 'emoteClose': ui.emoteOpen=false; render(); break;
     case 'em': ui.emoteOpen=false; if(!isHost) buzz(8); send({t:'emote',e:b.dataset.v}); render(); break;   // guests feel it now; the sound comes with the host's echo
@@ -916,6 +1016,7 @@ app.addEventListener('click', e=>{
       if(!ui.odds.open && !(mine?.cards?.length && mine.inHand && !mine.folded && isActive(v))){ toast('Your odds appear here once you’re dealt into a hand'); break; }
       ui.odds.open=!ui.odds.open; play('tick'); render(); break; }
     case 'stand': send({t:'stand'}); break;
+    case 'sitin': send({t:'sitout',on:false}); break;
     case 'tstart': send({t:'tstart'}); break;
     case 'treset': send({t:'treset'}); break;
     case 'standings': standingsSheet(); break;
@@ -924,9 +1025,10 @@ app.addEventListener('click', e=>{
       const btns=[{label:'Invite friends',cls:'primary',fn:shareInvite},{label:'Show QR code',fn:qrSheet},{label:'Hand history',fn:historySheet},{label:'Hand rankings',fn:rankingsSheet}];
       btns.push(v?.tour ? {label:'Standings',fn:standingsSheet} : {label:'Ledger',fn:ledgerSheet});
       btns.push({label:'Sound & vibration',fn:settingsSheet});
+      if(v && v.mySeat>=0 && !v.tour){ const out=v.seats[v.mySeat].sittingOut; btns.push({label:out?'I’m back':'Sit out next hand',fn:()=>send({t:'sitout',on:!out})}); }
       if(v && v.mySeat>=0) btns.push({label:v.tour?.started?'Leave tournament':'Stand up',fn:()=>send({t:'stand'})});
       if(isHost) btns.push({label:'Close table for everyone',cls:'danger',fn:endTable});
-      const what = v?.tour ? `Tournament · starting stack ${fmt(v.tour.stack)}` : v ? `Blinds ${v.sb}/${v.bb} · buy-in ${short(v.buyIn)}` : '';
+      const what = v?.tour ? `Tournament · starting stack ${fmt(v.tour.stack)}` : v ? `Blinds ${fmt(v.sb)}/${fmt(v.bb)} · buy-in ${short(v.buyIn)}` : '';
       sheet(`Table ${fmtCode(tableCode)}`, `<p>${what}${isHost?' · you are hosting. The table saves automatically on this device.':''}</p>`, btns); break; }
     case 'leave':
       if(isHost) sheet('Leave table?','You’re the host. The game pauses for everyone while you’re away. It’s saved on this device: open the same link or pick it from “Your tables” to resume.',[{label:'Leave',cls:'danger',fn:goHome}]);
@@ -936,9 +1038,26 @@ app.addEventListener('click', e=>{
 });
 app.addEventListener('keydown', e=>{ if(e.target.id==='nm' && e.key==='Enter'){ e.preventDefault(); document.querySelector('[data-act=start],[data-act=join]')?.click(); } });
 
+// Your action: play its sound right away (all in when it puts your whole stack in) and remember it,
+// so the echo from the host doesn't play it twice.
+function doAction(a, amt){
+  const v=view, m=v && v.seats[v.mySeat];
+  if(m){
+    const toCall=v.curBet-m.bet, all=(a==='call'&&toCall>=m.stack) || (a==='raise'&&amt>=m.bet+m.stack);
+    ui.selfCue=v.handNo+':'+(m.acts+1);
+    play(all?'allin':a==='call'&&toCall<=0?'check':{fold:'fold',check:'check',call:'chip',raise:'chips'}[a]);
+  }
+  send({t:'act',a,amt});
+}
+
 // keyboard shortcuts (desktop): F fold, C / space check-call, R min-raise, ↑ custom raise (then ←/→ to size it), Enter confirm, H hide cards, Esc close
 document.addEventListener('keydown',e=>{
   if(e.metaKey||e.ctrlKey||e.altKey||e.target.closest?.('input:not([type=range])')) return;
+  // Space/Enter on a control reached with the keyboard activates that control, not a shortcut
+  if((e.key===' '||e.key==='Enter') && e.target!==document.body && e.target.matches?.(':focus-visible')){
+    if(e.target.id==='hole'){ e.preventDefault(); toggleHide(); }
+    return;
+  }
   if(e.key==='Escape'){ const bg=document.querySelector('.sheet-bg:not(.closing)'); if(bg){ closeSheet(bg); return; }
     if(ui.emoteOpen){ ui.emoteOpen=false; render(); return; } if(ui.raiseOpen){ ui.raiseOpen=false; render(); } return; }
   if(screen==='lobby' || document.querySelector('.sheet-bg:not(.closing)')) return;
@@ -952,22 +1071,27 @@ document.addEventListener('keydown',e=>{
 });
 
 // ------------------------------ flows ------------------------------
-function startHosting(){
+async function startHosting(){
   const [sb,bb]=STAKES[lobby.stake];
+  const hostKey=await lobbyKeyP;
   tableCode=lobby.code; isHost=true;
   const tour = lobby.game==='tourney'
     ? { started:false, finished:false, baseSb:sb, level:0, levelMs:SPEEDS[lobby.speed][1]*60000, levelEnds:0, places:[], stack:bb*TOUR_STACK_BB } : null;
   S=mkState({sb,bb,buyIn:bb*100,minBuy:bb*20,table:tableCode,mode:tour?'tourney':'cash',tour});
+  S.hostKey=hostKey; await useHostKey(hostKey).catch(()=>{});
   S.seats[0]=mkSeat({token:me.token,pid:'local',name:me.name,av:me.av,stack:tour?tour.stack:S.buyIn});
   if(!tour) S.ledger[me.token]={name:me.name,buy:S.buyIn,out:0};
-  history.replaceState(null,'','#'+tableCode);
+  history.replaceState(null,'','#'+tableCode+(hostKey?'.'+hostKey.fp:''));
   screen='table'; hostSync(); connect(tableCode);
   setTimeout(()=>toast(tour?'Invite friends from •••, add bots with +, then start':'Tap ••• to invite friends, or + to add bots',4200),600);
 }
-function resumeHost(code){
+async function resumeHost(code){
   tableCode=code; isHost=true; S=LS.get('pp-host-'+code,null);
+  // tables saved before hosts had a key get one now (links shared earlier still work, without the fingerprint)
+  S.hostKey ||= await makeHostKey().catch(()=>null); lobbyKey=S.hostKey; lobbyKeyP=Promise.resolve(lobbyKey);
+  await useHostKey(S.hostKey).catch(()=>{});
   // fill in fields added in newer versions
-  S.mode ||= 'cash'; S.dead ||= 0; S.burned ||= []; S.log ||= [];
+  S.mode ||= 'cash'; S.dead ||= 0; S.burned ||= []; S.log ||= []; S.ledger ||= {};
   for(const s of S.seats) if(s){ s.noReraise ??= false; s.startStack ??= s.stack; }
   for(const s of S.seats) if(s&&!s.bot){ s.connected = s.token===me.token; if(s.token===me.token) s.pid='local'; }
   // the blind clock stops while a tournament is closed
@@ -977,6 +1101,7 @@ function resumeHost(code){
 }
 async function startJoining(){
   tableCode=lobby.code; isHost=false; screen='table'; render();
+  hostFp = lobby.fp || LS.get('ot-hk-'+tableCode,'');
   lan.online=await hasInternet();
   if(lobby.lanOffer) startLanGuest(lobby.lanOffer);          // scanned an offline QR: Wi-Fi route ready either way
   if(lan.online) connect(tableCode);
@@ -986,18 +1111,20 @@ async function startJoining(){
 function endTable(){
   sheet('Close the table?','Everyone is sent back to the start screen and the saved table is deleted.',[{label:'Close table',cls:'danger',fn:()=>{
     netSend({t:'ended'});
-    LS.del('pp-host-'+tableCode); setTimeout(goHome,300); }}]);
+    closed=true; LS.del('pp-host-'+tableCode); setTimeout(goHome,300); }}]);
 }
 function goHome(){ try{ net?.room.leave(); }catch{} history.replaceState(null,'',location.pathname); location.reload(); }
 const newCode = () => String(1000000+rnd(9000000));
+// The host key is made in the lobby so an invite copied before starting already carries its fingerprint.
+let lobbyKey=null, lobbyKeyP=Promise.resolve(null);
 
 // ------------------------------ boot ------------------------------
 (function boot(){
   const code=(location.hash.slice(1).match(/\d{7}/)||[])[0];
   if(code && LS.get('pp-host-'+code,null)) return resumeHost(code);
-  const offer=(location.hash.match(/~(.+)$/)||[])[1];
-  if(code){ lobby={...lobby,mode:'join',code,lanOffer:offer?decodeURIComponent(offer):''}; }
-  else lobby={...lobby,mode:'create',code:newCode()};
+  const offer=(location.hash.match(/~(.+)$/)||[])[1], fp=(location.hash.match(/^#\d{7}\.([0-9a-f]{16})/)||[])[1]||'';
+  if(code){ lobby={...lobby,mode:'join',code,fp,lanOffer:offer?decodeURIComponent(offer):''}; }
+  else { lobby={...lobby,mode:'create',code:newCode()}; lobbyKeyP=makeHostKey().catch(()=>null).then(k=>lobbyKey=k); }
   screen='lobby'; render();
 })();
 window.addEventListener('hashchange',()=>location.reload());
