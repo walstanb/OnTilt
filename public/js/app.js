@@ -715,7 +715,7 @@ function renderTable(prev){
     return;
   }
   syncOdds(v);
-  const seated=v.mySeat>=0, anchor=seated?v.mySeat:0, mine=seated?v.seats[v.mySeat]:null;
+  const seated=v.mySeat>=0, anchor=seated?v.mySeat:watchSeat(v), mine=seated?v.seats[v.mySeat]:null;
   const active=isActive(v);
   const R=v.results;
   const maxStack=Math.max(0,...v.seats.filter(Boolean).map(s=>s.stack));
@@ -833,7 +833,8 @@ function renderTable(prev){
       ${seated?`<button class="smile" data-act="emote" aria-label="Reactions">${ICON.smile}</button><button class="rkbtn" data-act="ranks" aria-label="Hand rankings">${ICON.ranks}</button>
         ${v.voiceOn?`<button class="mic ${voice.on?(voice.muted?'off':'live'):''}" data-act="mic" aria-label="${!voice.on?'Join voice chat':voice.muted?'Unmute your mic':'Mute your mic'}" aria-pressed="${voice.on&&!voice.muted}">${voice.on&&!voice.muted?ICON.mic:ICON.micOff}</button>`:''}`:''}</div>`;
   } else {
-    box=`<div class="hand"><div class="hn">Open seat</div><button class="plus" data-k="plus" data-act="sit" data-i="${anchor}" ${seated?'disabled':''}></button><div class="hn"></div></div>`;
+    const closed = seated || (T && T.started);
+    box=`<div class="hand"><div class="hn">${closed?'Open seat':'Sit here'}</div><button class="plus" data-k="plus" data-act="sit" data-i="${anchor}" ${closed?'disabled':''} aria-label="Sit here"></button><div class="hn"></div></div>`;
   }
   const flung = mine && mine.folded && ui.flung===v.handNo;   // swiped away: thrown briefly, then settles back as the folded silhouette
   const holeEl=`<div class="hole ${mine&&mine.folded?'folded':''} ${flung?'flung':''} ${holeCards?'mine':''}" id="hole"${holeCards?
@@ -926,6 +927,13 @@ function oddsHTML(){
   </div>`;
 }
 
+// Before you sit, the bottom box is the empty seat just before the first player, so the others read
+// left to right in seat order and sitting there doesn't rotate the table.
+function watchSeat(v){
+  const f=v.seats.findIndex(Boolean); if(f<0) return 0;
+  for(let k=1;k<=MAXS;k++){ const j=(f-k+MAXS)%MAXS; if(!v.seats[j]) return j; }
+  return 0;                       // full table: watch from seat 0
+}
 function seatHTML(v,i,seated,maxStack){
   const s=v.seats[i], R=v.results, active=isActive(v);
   const canSit = !(v.tour && v.tour.started) && (!seated || v.isHost);
@@ -1239,7 +1247,8 @@ app.addEventListener('click', e=>{
     case 'join': readName(); if(!me.name){ toast('Enter your name first'); document.getElementById('nm')?.focus(); return; } startJoining(); break;
     case 'home': goHome(); break;
     case 'sit': { const i=+b.dataset.i;
-      if(v.mySeat<0) send({t:'sit',seat:i});
+      // you always sit in the bottom seat, so the table doesn't turn under you when you join
+      if(v.mySeat<0){ const w=watchSeat(v); send({t:'sit',seat:v.seats[w]?i:w}); }
       else if(v.isHost) sheet('Open seat','Add a bot to fill this seat?',[{label:'Add bot',cls:'primary',fn:()=>send({t:'addbot',seat:i})}]);
       break; }
     case 'seatTap': { const i=+b.dataset.i, s=v.seats[i]; if(!s || i===v.mySeat) break;
