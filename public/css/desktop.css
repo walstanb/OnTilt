@@ -20,10 +20,12 @@
   #app.lobby-wide .lobby{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:36px;height:auto;min-height:0;max-height:min(760px,100%);align-items:stretch}
   #app.lobby-wide .panel{margin:0;border-radius:36px;padding:8px 28px 34px;display:flex;flex-direction:column;justify-content:center;min-height:540px}
   #app.lobby-wide .panel.join{justify-content:flex-start}
-  #app.lobby-wide .panel .top{position:absolute;top:0;left:0;right:0;padding:18px 18px 0}
-  #app.lobby-wide .panel{position:relative;padding-top:84px}
-  #app.lobby-wide .panel .top{padding-top:26px}
-  #app.lobby-wide .panel .top .wm{font-size:32px}
+  /* the brand leaves the card: a small logo at the top of the screen */
+  #app.lobby-wide .panel .top{position:absolute;top:max(env(safe-area-inset-top),20px);left:32px;right:32px;height:44px}
+  #app.lobby-wide .panel .top .wm{font-size:20px}
+  #app.lobby-wide .panel{padding-top:34px}
+  /* fade in without sliding: a moving parent would carry the logo along with it */
+  #app.lobby-wide.enter > *{animation-name:fade}
   #app.lobby-wide .side{padding:8px 0 0}
   #app.lobby-wide .prof{margin-top:0}
   #app.lobby-wide .avs{flex-wrap:wrap;overflow:visible;margin:12px 0 0;padding:0}
