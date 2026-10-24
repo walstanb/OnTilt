@@ -346,7 +346,9 @@ function handle(d, pid){
     case 'sitout': { if(i<0 || tourOn()) return; S.seats[i].sittingOut=!!d.on; S.seq++; break; }
     case 'stand': if(i<0) return; dropSeat(i); S.seq++; break;
     case 'show': {   // reveal your cards to everyone when the hand ends (folded players, uncalled winners)
-      const s=S.seats[i]; if(i<0 || s.bot || !s.cards.length || s.show || S.results?.reveal?.[i]) return;
+      const s=S.seats[i]; if(i<0 || s.bot || !s.cards.length || S.results?.reveal?.[i]) return;
+      if(d.on===false){ if(S.results || !s.show) return; s.show=false; S.seq++; break; }   // changed their mind before the hand ended
+      if(s.show) return;
       s.show=true; if(S.results) logShown(i);
       S.seq++; break; }
     case 'addbot': { if(!host) return; const k=d.seat|0; if(k<0||k>=MAXS||S.seats[k]||tourOn()&&S.tour.started) return;
@@ -782,8 +784,7 @@ function renderTable(prev){
       html=opts.map(([k,l])=>`<button class="btn pre ${sel(k)}" data-act="pre" data-v="${k}" data-amt="${k==='call'?toCall:''}" aria-pressed="${!!sel(k)}">${l}</button>`).join('');
       ctrl=`<div class="ctrl" style="grid-template-columns:${opts.length>2?'1fr 1.1fr 1fr':'1fr 1fr'}">${html}</div>`;
     }
-    else if(mine.folded) ctrl=`<div class="ctrl" style="grid-template-columns:1fr 1fr"><button class="btn" disabled>Folded</button>${mine.show
-        ? '<button class="btn" disabled>Showing at the end</button>' : '<button class="btn on" data-act="show">Show cards at the end</button>'}</div>`;
+    else if(mine.folded) ctrl=`<div class="ctrl"><button class="btn pre wide ${mine.show?'sel':''}" data-act="showToggle" aria-pressed="${!!mine.show}">${mine.show?'Showing your cards at the end':'Show cards at the end'}</button></div>`;
     else if(mine.allIn){ ctrl=wide('All in'); }
     else ctrl=`<div class="ctrl" style="grid-template-columns:${cols.join(' ')}">${html}</div>`;
 
@@ -825,7 +826,7 @@ function renderTable(prev){
   let box;
   if(a){
     box=`<div class="hand ${handTurn?'turn':''}" ${handTurn&&v.turnLeft?'data-timer':''} data-seat-av="${anchor}">
-      ${seated && hn && !hidden ? `<button class="hn hnb" data-act="ranks" aria-label="${esc(hn)} · see hand rankings">${esc(hn)}</button>` : `<div class="hn">${esc(hn)}</div>`}
+      ${seated && hn && !hidden ? `<button class="hn hnb ${hn.length>11?'long':''}" data-act="ranks" aria-label="${esc(hn)} · see hand rankings">${esc(hn)}</button>` : `<div class="hn">${esc(hn)}</div>`}
       ${seated?`<button class="av ${voice.on?talkCls(voice.vid):''}"${voice.on?vidAttr(voice.vid):''} data-act="odds" aria-label="Your odds">`:'<div class="av">'}${avatarSVG(a.av)}${v.dealer===anchor&&v.handNo?'<b class="d">D</b>':''}${seated?'</button>':'</div>'}
       ${seated && ui.odds.open ? oddsHTML() : ''}
       <div class="st">${a.stack>=1e6?short(a.stack):fmt(a.stack)}</div>
@@ -1271,6 +1272,7 @@ app.addEventListener('click', e=>{
     case 'em': ui.emoteOpen=false; if(!isHost) buzz(8); send({t:'emote',e:b.dataset.v}); render(); break;   // guests feel it now; the sound comes with the host's echo
     case 'rebuy': play('chips'); send({t:'rebuy'}); break;
     case 'show': play('flip'); send({t:'show'}); break;
+    case 'showToggle': { const m=v.seats[v.mySeat]; play('tick'); send({t:'show',on:!m?.show}); break; }
     case 'ranks': rankingsSheet(); break;
     case 'pre': { const k=b.dataset.v; ui.pre = ui.pre?.kind===k ? null : { kind:k, amt:+b.dataset.amt||0, hand:v.handNo }; play('tick'); render(); break; }
     case 'odds': {
