@@ -20,10 +20,11 @@
   #app.lobby-wide .lobby{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:36px;height:auto;min-height:0;max-height:min(760px,100%);align-items:stretch}
   #app.lobby-wide .panel{margin:0;border-radius:36px;padding:8px 28px 34px;display:flex;flex-direction:column;justify-content:center;min-height:540px}
   #app.lobby-wide .panel.join{justify-content:flex-start}
-  /* the logo sits in the card's flow, centred together with the settings under it */
-  #app.lobby-wide .panel .top{margin-bottom:22px}
-  #app.lobby-wide .panel .top .wm{font-size:30px}
-  #app.lobby-wide .panel{padding-top:34px}
+  /* the logo sits centred in the space above the settings; a matching spacer below keeps the settings centred */
+  #app.lobby-wide .panel:not(.join) .top{flex:1 1 0;height:auto;min-height:72px;align-items:center}
+  #app.lobby-wide .panel:not(.join)::after{content:'';flex:1 1 0;min-height:12px}
+  #app.lobby-wide .panel .top .wm{font-size:34px}
+  #app.lobby-wide .panel{padding-top:8px}
   /* fade in without sliding: a moving parent would carry the logo along with it */
   #app.lobby-wide.enter > *{animation-name:fade}
   #app.lobby-wide .side{padding:8px 0 0}

@@ -202,3 +202,5 @@ body.zoomed .float{font-size:calc(46px * var(--z))}
 /* your hand's name stays clear of the ⓘ and reaction buttons in the box corners */
 .hand .hn{max-width:calc(100% - 58px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 2px}
 .hand .hn.long{font-size:clamp(10.5px,3cqw,14px);letter-spacing:-.02em}
+.hand .hns{display:none}
+@container (max-width:340px){ .hand .hnf{display:none} .hand .hns{display:inline} }

@@ -826,7 +826,7 @@ function renderTable(prev){
   let box;
   if(a){
     box=`<div class="hand ${handTurn?'turn':''}" ${handTurn&&v.turnLeft?'data-timer':''} data-seat-av="${anchor}">
-      ${seated && hn && !hidden ? `<button class="hn hnb ${hn.length>11?'long':''}" data-act="ranks" aria-label="${esc(hn)} · see hand rankings">${esc(hn)}</button>` : `<div class="hn">${esc(hn)}</div>`}
+      ${seated && hn && !hidden ? `<button class="hn hnb ${hn.length>11?'long':''}" data-act="ranks" aria-label="${esc(hn)} · see hand rankings">${hnText(hn)}</button>` : `<div class="hn">${hnText(hn)}</div>`}
       ${seated?`<button class="av ${voice.on?talkCls(voice.vid):''}"${voice.on?vidAttr(voice.vid):''} data-act="odds" aria-label="Your odds">`:'<div class="av">'}${avatarSVG(a.av)}${v.dealer===anchor&&v.handNo?'<b class="d">D</b>':''}${seated?'</button>':'</div>'}
       ${seated && ui.odds.open ? oddsHTML() : ''}
       <div class="st">${a.stack>=1e6?short(a.stack):fmt(a.stack)}</div>
@@ -927,6 +927,8 @@ function oddsHTML(){
   </div>`;
 }
 
+// "Three of a Kind" doesn't fit your box on the narrowest phones: CSS swaps in "Trips" there
+const hnText = hn => hn==='Three of a Kind' ? '<span class="hnf">Three of a Kind</span><span class="hns">Trips</span>' : esc(hn);
 // Before you sit, the bottom box is the empty seat just before the first player, so the others read
 // left to right in seat order and sitting there doesn't rotate the table.
 function watchSeat(v){
